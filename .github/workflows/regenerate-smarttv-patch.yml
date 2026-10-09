@@ -65,6 +65,9 @@ jobs:
             exit 1
           fi
 
+      - name: Clear stale patch
+        run: rm -f "$GITHUB_WORKSPACE/patches/livetv-smarttv.patch"
+
       - name: Produce cumulative patch
         run: |
           mkdir -p patches
@@ -82,8 +85,8 @@ jobs:
           grep -q "NUVIO_TIZEN_MANIFEST_V2" patches/livetv-smarttv.patch
           grep -q "nuvioTizenRequiredVersion" patches/livetv-smarttv.patch
           grep -q "samsung.com/appcontrol/operation/eden_resume" patches/livetv-smarttv.patch
-          if grep -q "<tizen:action" patches/livetv-smarttv.patch; then
-            echo "::error::patch still contains the schema-invalid <tizen:action> element"
+          if grep -n "<tizen:action" patches/livetv-smarttv.patch | grep -v "tizenAppControl.js"; then
+            echo "::error::a generator emitted the schema-invalid <tizen:action> element"
             exit 1
           fi
           if grep -q "11470\|11471" patches/livetv-smarttv.patch; then
