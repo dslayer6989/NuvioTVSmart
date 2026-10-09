@@ -38,7 +38,8 @@ jobs:
           python "$GITHUB_WORKSPACE/.github/livetv-tools/livetv_smarttv.py" --root /tmp/pristine --check
           test -f /tmp/pristine/js/livetv/playback/livePlaybackStrategy.js
           test -f /tmp/pristine/js/livetv/ui/guideGridVirtualizer.js
-          grep -q "livetv: LiveTvScreen" /tmp/pristine/js/ui/navigation/router.js
+          grep -q "livetv: liveTvScreen" /tmp/pristine/js/ui/navigation/router.js
+          grep -q "guide: liveTvScreen" /tmp/pristine/js/ui/navigation/router.js
           grep -q "appcontrol/operation/search" /tmp/pristine/scripts/package-tizen.mjs
 
       - name: Upload patch artifact
