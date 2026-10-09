@@ -1269,12 +1269,11 @@ export function isLiveTvRow(row) {
 
 FILES["js/livetv/integration/tizenAppControl.js"] = r"""// Tizen app-control / voice-search integration.
 //
-// config.xml declares:
+// config.xml declares (emitted by the pinned buildConfigXml + patch_tizen_manifest.py):
 //   <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
 //   <tizen:app-control>
-//     <tizen:src>
-//       <tizen:action>http://tizen.org/appcontrol/operation/search</tizen:action>
-//     </tizen:src>
+//     <tizen:src name="index.html" reload="disable"/>
+//     <tizen:operation name="http://samsung.com/appcontrol/operation/eden_resume"/>
 //   </tizen:app-control>
 //
 // The query arrives under the extra-data key
