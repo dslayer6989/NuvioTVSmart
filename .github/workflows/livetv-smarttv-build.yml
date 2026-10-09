@@ -140,24 +140,27 @@ jobs:
           TAG_NAME: ${{ inputs.tag }}
         run: |
           LEGACY_TAG="${TAG_NAME}-legacy"
+          cat > /tmp/legacy-notes.md <<'NOTES'
+          ### Nuvio TV Live TV - Samsung Tizen 4.0 through 5.5 (LEGACY)
+
+          **Asset:** `NuvioTV-Tizen5.5Max-2020Legacy.wgt` (required_version 4.0)
+
+          | TV year | Tizen |
+          |---|---|
+          | 2018 | 4.0 |
+          | 2019 | 5.0 |
+          | 2020 | 5.5 (e.g. TU7000, Q90T) |
+
+          Install this LEGACY build on 2018-2020 Samsung TVs. The schema-invalid `<tizen:action>` element that caused `install failed[118, -19] Parsing error` is fixed here; app-control now uses `<tizen:operation name="http://samsung.com/appcontrol/operation/eden_resume"/>`.
+
+          Includes the local P2P service (EngineFS, port 2710). No PluginService (Tizen 6+ only).
+
+          The WGT is UNSIGNED on purpose: the Nuvio TV Installer signs it locally for your TV's DUID.
+          NOTES
           gh release create "$LEGACY_TAG" \
             "/tmp/build/$LEGACY_NAME" \
             --title "Nuvio TV Live TV - $LEGACY_TAG (Tizen 4.0-5.5, 2018-2020)" \
-            --notes "### Nuvio TV Live TV - Samsung Tizen 4.0 through 5.5 (LEGACY)
-
-**Asset:** \`$LEGACY_NAME\` (required_version 4.0)
-
-| TV year | Tizen |
-|---|---|
-| 2018 | 4.0 |
-| 2019 | 5.0 |
-| 2020 | 5.5 (e.g. TU7000, Q90T) |
-
-Install this LEGACY build on 2018-2020 Samsung TVs. The schema-invalid \`<tizen:action>\` element that caused \`install failed[118, -19] Parsing error\` is fixed here; app-control now uses \`<tizen:operation name=\"http://samsung.com/appcontrol/operation/eden_resume\"/>\`.
-
-Includes the local P2P service (EngineFS, port 2710). No PluginService (Tizen 6+ only).
-
-The WGT is UNSIGNED on purpose: the Nuvio TV Installer signs it locally for your TV's DUID." \
+            --notes-file /tmp/legacy-notes.md \
             --repo "${{ github.repository }}"
 
       - name: Create MODERN release
@@ -166,24 +169,27 @@ The WGT is UNSIGNED on purpose: the Nuvio TV Installer signs it locally for your
           TAG_NAME: ${{ inputs.tag }}
           IPK: ${{ steps.artifacts.outputs.ipk }}
         run: |
+          cat > /tmp/modern-notes.md <<'NOTES'
+          ### Nuvio TV Live TV - Samsung Tizen 6.0 and newer / LG webOS
+
+          **Samsung asset:** `NuvioTV-Tizen6-2021plus.wgt` (Tizen 6.0+, 2021 and newer)
+          **LG asset:** `NuvioTV-webOS-<tag>.ipk`
+
+          | TV year | Tizen |
+          |---|---|
+          | 2021 | 6.0 |
+          | 2022 | 6.5 |
+          | 2023 | 7.0 |
+          | 2024 | 8.0 |
+          | 2025 | 9.0 |
+          | 2026 | 10.0 |
+
+          Includes the local P2P service (EngineFS, port 2710) and the Tizen 6+ PluginService bridge (port 2711).
+
+          The WGT is UNSIGNED on purpose: the Nuvio TV Installer signs it locally for your TV's DUID.
+          NOTES
           gh release create "$TAG_NAME" \
             "/tmp/build/$MODERN_NAME" "/tmp/build/$IPK" \
             --title "Nuvio TV Live TV - $TAG_NAME (Tizen 6.0+, 2021+)" \
-            --notes "### Nuvio TV Live TV - Samsung Tizen 6.0 and newer / LG webOS
-
-**Samsung asset:** \`$MODERN_NAME\` (Tizen 6.0+, 2021 and newer)
-**LG asset:** \`$IPK\`
-
-| TV year | Tizen |
-|---|---|
-| 2021 | 6.0 |
-| 2022 | 6.5 |
-| 2023 | 7.0 |
-| 2024 | 8.0 |
-| 2025 | 9.0 |
-| 2026 | 10.0 |
-
-Includes the local P2P service (EngineFS, port 2710) and the Tizen 6+ PluginService bridge (port 2711).
-
-The WGT is UNSIGNED on purpose: the Nuvio TV Installer signs it locally for your TV's DUID." \
+            --notes-file /tmp/modern-notes.md \
             --repo "${{ github.repository }}"
