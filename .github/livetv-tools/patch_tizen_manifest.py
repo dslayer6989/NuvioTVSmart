@@ -10,8 +10,7 @@ config.xml emitted by buildConfigXml() is valid on BOTH the Tizen 5.5 schema
 
 WHY
 ---
-The retired .github/livetv-tools/inject_tizen_config.py injected a
-SCHEMA-INVALID app-control block:
+A SCHEMA-INVALID app-control block can end up in the emitted manifest:
 
     <tizen:app-control>
       <tizen:src>
@@ -23,13 +22,22 @@ SCHEMA-INVALID app-control block:
 attribute, so Tizen Web Runtime rejects the package with:
     install failed[118, -19], reason: Parsing error
 
+The retired .github/livetv-tools/inject_tizen_config.py injected this block. The
+pristine upstream buildConfigXml() does NOT emit it, but the cumulative patch may
+carry a stale copy, so this tool defensively REMOVES any such block from the
+emitter and guarantees the ONLY app-control emitted is the schema-correct
+eden_resume form.
+
 WHAT THIS TOOL DOES (idempotent; marker-guarded)
 -----------------------------------------------
 1. Injects a tier-aware required_version helper keyed on TIZEN_TARGET_MAJOR.
 2. Rewrites the emitted required_version to use that helper.
-3. Injects the CORRECT app-control block immediately after the tv.inputdevice
+3. REMOVES any upstream <tizen:app-control>...</tizen:app-control> block that
+   contains a <tizen:action> element (multiline, robust to whitespace).
+4. Injects the CORRECT app-control block immediately after the tv.inputdevice
    privilege line of the generated manifest.
-4. Hard-fails if a <tizen:action> token survives anywhere in the file.
+5. Hard-fails (non-zero exit) if a <tizen:action> token survives anywhere in the
+   file after all transforms.
 
 The tool never weakens an assertion and never hand-edits the mjs at runtime: it
 is the single source of truth for the manifest edit, so the cumulative patch
@@ -50,6 +58,17 @@ REQ_VER_RE = re.compile(
 )
 INPUTDEVICE_RE = re.compile(
     r'(?P<line>^[ \t]*<tizen:privilege name="http://tizen\.org/privilege/tv\.inputdevice"/>[ \t]*$)',
+    re.MULTILINE,
+)
+# Multiline match for the schema-invalid upstream app-control block. Matches the
+# whole <tizen:app-control>...</tizen:app-control> element ONLY when it contains a
+# <tizen:action> element, so a correct eden_resume block is never touched.
+BAD_APP_CONTROL_RE = re.compile(
+    r'[ \t]*<tizen:app-control\b[^>]*>'
+    r'(?:(?!</tizen:app-control>)[\s\S])*?'
+    r'<tizen:action\b[\s\S]*?</tizen:action>'
+    r'(?:(?!</tizen:app-control>)[\s\S])*?'
+    r'</tizen:app-control>[ \t]*\n?',
     re.MULTILINE,
 )
 BAD_TOKEN = "<tizen:action"
@@ -84,16 +103,13 @@ def main() -> int:
         print("[patch_tizen_manifest] already patched (marker present); nothing to do.")
         return 0
 
-    if BAD_TOKEN in src:
-        print(
-            "[patch_tizen_manifest] ERROR: found a leftover '<tizen:action' token in "
-            f"{PACKAGER}.\n"
-            "The retired .github/livetv-tools/inject_tizen_config.py must be deleted "
-            "and removed from all workflows before re-running.",
-            file=sys.stderr,
-        )
-        return 3
+    transforms = 0
 
+    # Transform 1: remove any schema-invalid upstream app-control block.
+    src, n_strip = BAD_APP_CONTROL_RE.subn("", src)
+    transforms += n_strip
+
+    # Transform 2: rewrite required_version to the tier-aware helper.
     src, n_req = REQ_VER_RE.subn('required_version="${nuvioTizenRequiredVersion()}"', src)
     if n_req != 1:
         print(
@@ -103,7 +119,9 @@ def main() -> int:
             file=sys.stderr,
         )
         return 4
+    transforms += n_req
 
+    # Transform 3: inject the schema-correct eden_resume app-control block.
     def _inject(match: "re.Match[str]") -> str:
         return match.group("line") + "\n" + APP_CONTROL.rstrip("\n")
 
@@ -115,11 +133,30 @@ def main() -> int:
             file=sys.stderr,
         )
         return 5
+    transforms += n_inj
 
+    # Transform 4: prepend the tier-aware helper.
     src = HELPER + "\n" + src
+    transforms += 1
+
+    # Hard-fail if any schema-invalid token survives.
+    if BAD_TOKEN in src:
+        print(
+            "[patch_tizen_manifest] ERROR: a leftover '<tizen:action' token survived all "
+            f"transforms in {PACKAGER}. The retired "
+            ".github/livetv-tools/inject_tizen_config.py must be deleted and removed from "
+            "all workflows before re-running.",
+            file=sys.stderr,
+        )
+        return 3
 
     PACKAGER.write_text(src, encoding="utf-8")
-    print("[patch_tizen_manifest] OK: manifest policy applied (TIZEN_TARGET_MAJOR-aware).")
+    print(
+        f"[patch_tizen_manifest] OK: manifest policy applied (TIZEN_TARGET_MAJOR-aware). "
+        f"Transforms applied: {transforms} "
+        f"(stripped_bad_app_control={n_strip}, required_version={n_req}, "
+        f"eden_resume_insert={n_inj}, helper=1)."
+    )
     return 0
 
 
