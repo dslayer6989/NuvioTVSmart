@@ -89,13 +89,28 @@ export const LIVE_CHANNEL_TYPE_NAME = LIVE_CHANNEL_TYPE;
 
 FILES["js/livetv/model/liveEpgProgram.js"] = r"""// Live TV EPG programme model.
 //
-// The Stremio-TV addon is a spec-compliant Stremio native EPG provider. Its
-// /meta/tv/{id}.json response currently exposes `stremioTvDiagnostics` but not
-// a `videos[]` programme array. This model therefore tolerates BOTH shapes and
-// degrades to an empty programme list rather than throwing.
+// The Stremio-TV addon returns a `videos[]` programme array inside `meta` on
+// /meta/tv/{id}.json whenever stremioTvDiagnostics.epg_status === "matched".
+// Unmatched channels omit the key entirely.
+//
+// Each videos[] entry uses EXACTLY these fields:
+//   id, title, released, startTime, endTime, runtime, overview, thumbnail,
+//   genres[], releaseInfo
+// There is no season/episode/description/name field and no `poster`; the image
+// field is `thumbnail` and the synopsis field is `overview`.
 
 function normalizeText(value) {
   return String(value ?? "").trim();
+}
+
+function normalizeGenres(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => normalizeText(entry))
+      .filter(Boolean)
+      .join(", ");
+  }
+  return normalizeText(value);
 }
 
 const DEFAULT_PROGRAM_DURATION_MS = 30 * 60 * 1000;
@@ -115,6 +130,22 @@ export function toEpochMs(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+// "60 min", "1 h 30 m", "90" -> milliseconds. Returns 0 when unparseable.
+export function parseRuntimeMs(value) {
+  const text = normalizeText(value);
+  if (!text) {
+    return 0;
+  }
+  const hours = text.match(/(\d+(?:\.\d+)?)\s*h/i);
+  const minutes = text.match(/(\d+(?:\.\d+)?)\s*m/i);
+  if (hours || minutes) {
+    const totalMinutes = (hours ? Number(hours[1]) * 60 : 0) + (minutes ? Number(minutes[1]) : 0);
+    return Number.isFinite(totalMinutes) && totalMinutes > 0 ? Math.round(totalMinutes * 60000) : 0;
+  }
+  const bare = Number(text);
+  return Number.isFinite(bare) && bare > 0 ? Math.round(bare * 60000) : 0;
+}
+
 export function normalizeLiveEpgProgram(raw = {}, { channelId = "" } = {}) {
   const start = toEpochMs(raw.start ?? raw.startTime ?? raw.start_time ?? raw.begin);
   const end = toEpochMs(raw.end ?? raw.endTime ?? raw.end_time ?? raw.stop);
@@ -123,16 +154,19 @@ export function normalizeLiveEpgProgram(raw = {}, { channelId = "" } = {}) {
     return null;
   }
   const resolvedEnd = end > start ? end : start + DEFAULT_PROGRAM_DURATION_MS;
+  const runtimeMs = parseRuntimeMs(raw.runtime ?? raw.duration ?? raw.length);
+  const category = normalizeGenres(raw.genres) || normalizeText(raw.category || raw.genre);
   return Object.freeze({
     id: normalizeText(raw.id) || `${channelId}:${start}`,
     channelId: normalizeText(channelId),
     title: title || "Untitled",
-    description: normalizeText(raw.description || raw.desc || raw.plot),
+    description: normalizeText(raw.overview || raw.description || raw.desc || raw.plot),
     start,
     end: resolvedEnd,
-    durationMs: Math.max(0, resolvedEnd - start),
-    category: normalizeText(raw.category || raw.genre),
-    poster: normalizeText(raw.poster || raw.thumbnail || raw.icon)
+    durationMs: runtimeMs > 0 ? runtimeMs : Math.max(0, resolvedEnd - start),
+    category,
+    poster: normalizeText(raw.thumbnail || raw.poster || raw.icon),
+    releaseInfo: normalizeText(raw.releaseInfo)
   });
 }
 
@@ -937,6 +971,132 @@ export const liveEpgCacheStore = {
 export const LIVE_EPG_CACHE_TTL = LIVE_EPG_CACHE_TTL_MS;
 """
 
+FILES["js/livetv/data/liveFavoritesStore.js"] = r"""// Profile-scoped Live TV favorites store.
+//
+// Favorites are a set of channel ids scoped to the active profile, stored in
+// the same cloud-sync envelope as the rest of the app's per-profile settings.
+
+import { createProfileScopedStore } from "../../data/local/profileScopedStore.js";
+
+const LIVE_FAVORITES_KEY = "liveTvFavoritesV1";
+
+function normalizeFavorites(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const ids = Array.isArray(source.ids) ? source.ids : [];
+  const seen = new Set();
+  const normalized = [];
+  ids.forEach((id) => {
+    const clean = String(id ?? "").trim();
+    if (clean && !seen.has(clean)) {
+      seen.add(clean);
+      normalized.push(clean);
+    }
+  });
+  return { ids: normalized };
+}
+
+const store = createProfileScopedStore({
+  key: LIVE_FAVORITES_KEY,
+  normalize: normalizeFavorites
+});
+
+export const liveFavoritesStore = {
+  list() {
+    return store.get().ids.slice();
+  },
+
+  has(channelId) {
+    return store.get().ids.includes(String(channelId ?? "").trim());
+  },
+
+  add(channelId) {
+    const clean = String(channelId ?? "").trim();
+    if (!clean) {
+      return false;
+    }
+    const current = store.get().ids;
+    if (current.includes(clean)) {
+      return false;
+    }
+    store.set({ ids: [...current, clean] });
+    return true;
+  },
+
+  remove(channelId) {
+    const clean = String(channelId ?? "").trim();
+    const current = store.get().ids;
+    if (!current.includes(clean)) {
+      return false;
+    }
+    store.set({ ids: current.filter((id) => id !== clean) });
+    return true;
+  },
+
+  toggle(channelId) {
+    return this.has(channelId) ? (this.remove(channelId), false) : (this.add(channelId), true);
+  },
+
+  clear() {
+    store.set({ ids: [] });
+  }
+};
+
+export { LIVE_FAVORITES_KEY };
+"""
+
+FILES["js/livetv/data/liveRecentsStore.js"] = r"""// Profile-scoped Live TV recents store.
+//
+// Records the most recently watched channel ids (most recent first), capped at
+// LIVE_RECENTS_MAX entries, scoped to the active profile.
+
+import { createProfileScopedStore } from "../../data/local/profileScopedStore.js";
+
+const LIVE_RECENTS_KEY = "liveTvRecentsV1";
+export const LIVE_RECENTS_MAX = 50;
+
+function normalizeRecents(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const ids = Array.isArray(source.ids) ? source.ids : [];
+  const seen = new Set();
+  const normalized = [];
+  ids.forEach((id) => {
+    const clean = String(id ?? "").trim();
+    if (clean && !seen.has(clean)) {
+      seen.add(clean);
+      normalized.push(clean);
+    }
+  });
+  return { ids: normalized.slice(0, LIVE_RECENTS_MAX) };
+}
+
+const store = createProfileScopedStore({
+  key: LIVE_RECENTS_KEY,
+  normalize: normalizeRecents
+});
+
+export const liveRecentsStore = {
+  list() {
+    return store.get().ids.slice();
+  },
+
+  record(channelId) {
+    const clean = String(channelId ?? "").trim();
+    if (!clean) {
+      return false;
+    }
+    const current = store.get().ids.filter((id) => id !== clean);
+    store.set({ ids: [clean, ...current].slice(0, LIVE_RECENTS_MAX) });
+    return true;
+  },
+
+  clear() {
+    store.set({ ids: [] });
+  }
+};
+
+export { LIVE_RECENTS_KEY };
+"""
+
 FILES["js/livetv/ui/guideGridVirtualizer.js"] = r"""// Guide grid virtualization.
 //
 // Mirrors the pure-function design of js/ui/screens/stream/streamVirtualizer.js
@@ -1221,12 +1381,17 @@ FILES["js/livetv/ui/liveTvRows.js"] = r"""// Live TV home row builder.
 // the same shape the home screen already consumes.
 
 import { formatChannelNumber } from "../core/liveChannelNumbering.js";
+import { liveTvState } from "../core/liveTvState.js";
 
 export const LIVE_TV_HOME_ROW_KEY = "livetv:channels";
 export const LIVE_TV_HOME_ROW_MAX_ITEMS = 20;
 
 function normalizeText(value) {
   return String(value ?? "").trim();
+}
+
+function rowKey(row) {
+  return normalizeText(row?.homeCatalogKey || row?.key);
 }
 
 export function buildLiveTvHomeRow(channels = [], { channelNumbers = {}, maxItems = LIVE_TV_HOME_ROW_MAX_ITEMS } = {}) {
@@ -1244,16 +1409,22 @@ export function buildLiveTvHomeRow(channels = [], { channelNumbers = {}, maxItem
     routeParams: { channelId: channel.id }
   }));
   return {
-    key: LIVE_TV_HOME_ROW_KEY,
+    homeCatalogKey: LIVE_TV_HOME_ROW_KEY,
+    rowKind: "livetv",
     title: "Live TV",
     source: "livetv",
-    items
+    result: { data: { items } }
   };
 }
 
+export function buildLiveTvHomeRowFromState({ maxItems = LIVE_TV_HOME_ROW_MAX_ITEMS } = {}) {
+  const state = liveTvState.getState();
+  return buildLiveTvHomeRow(state.channels, { channelNumbers: state.channelNumbers, maxItems });
+}
+
 export function mergeLiveTvHomeRow(rows = [], liveTvRow = null, { position = "start" } = {}) {
-  const list = Array.isArray(rows) ? rows.filter((row) => row?.key !== LIVE_TV_HOME_ROW_KEY) : [];
-  if (!liveTvRow || !Array.isArray(liveTvRow.items) || liveTvRow.items.length === 0) {
+  const list = Array.isArray(rows) ? rows.filter((row) => rowKey(row) !== LIVE_TV_HOME_ROW_KEY) : [];
+  if (!liveTvRow || !Array.isArray(liveTvRow?.result?.data?.items) || liveTvRow.result.data.items.length === 0) {
     return list;
   }
   if (position === "end") {
@@ -1263,7 +1434,7 @@ export function mergeLiveTvHomeRow(rows = [], liveTvRow = null, { position = "st
 }
 
 export function isLiveTvRow(row) {
-  return normalizeText(row?.key) === LIVE_TV_HOME_ROW_KEY;
+  return rowKey(row) === LIVE_TV_HOME_ROW_KEY;
 }
 """
 
@@ -1420,6 +1591,7 @@ FILES["js/livetv/liveTvSettings.js"] = r"""// Live TV settings model + markup.
 
 import { createProfileScopedStore } from "../data/local/profileScopedStore.js";
 import { LIVE_TV_CATALOGS, STREMIO_TV_ADDON_BASE_URL } from "./data/liveSourceRepository.js";
+import { liveTvState } from "./core/liveTvState.js";
 
 const LIVE_TV_SETTINGS_KEY = "liveTvSettingsV1";
 
@@ -1427,6 +1599,7 @@ function normalizeSettings(value) {
   const source = value && typeof value === "object" ? value : {};
   return {
     enabled: source.enabled !== false,
+    addonConfigured: source.addonConfigured === true,
     addonBaseUrl: String(source.addonBaseUrl || STREMIO_TV_ADDON_BASE_URL).trim(),
     catalogId: String(source.catalogId || "channels").trim() || "channels",
     showHomeRow: source.showHomeRow !== false,
@@ -1461,8 +1634,14 @@ export function renderLiveTvSettingsSection(ctx = {}) {
     return "";
   }
   const settings = liveTvSettings.get();
+  const channelCount = Array.isArray(liveTvState.getState().channels) ? liveTvState.getState().channels.length : 0;
+  const addonLabel = settings.addonConfigured ? "Addon configured" : "No addon";
+  const countLine = settings.addonConfigured
+    ? `${addonLabel} · ${channelCount} channels`
+    : `${channelCount} channels`;
   const catalogLabel =
     LIVE_TV_CATALOGS.find((catalog) => catalog.id === settings.catalogId)?.label || settings.catalogId;
+  const actionRow = typeof renderActionRow === "function" ? renderActionRow.bind(ctx) : null;
   const bodyHtml = `
           <div class="settings-stack">
             ${renderToggleRow({
@@ -1478,8 +1657,62 @@ export function renderLiveTvSettingsSection(ctx = {}) {
               checked: settings.showHomeRow
             })}
             ${
-              typeof renderActionRow === "function"
-                ? renderActionRow({
+              actionRow
+                ? actionRow({
+                    focusKey: "livetv:addon",
+                    title: t("livetv.settings.addon.title", {}, "Addon"),
+                    subtitle: settings.addonConfigured
+                      ? countLine
+                      : t("livetv.settings.addon.subtitle", {}, "Set up Live TV"),
+                    value: settings.addonConfigured ? settings.addonBaseUrl : ""
+                  })
+                : ""
+            }
+            ${
+              actionRow
+                ? actionRow({
+                    focusKey: "livetv:channels",
+                    title: t("livetv.settings.channels.title", {}, "Your channels"),
+                    subtitle: countLine
+                  })
+                : ""
+            }
+            ${
+              actionRow
+                ? actionRow({
+                    focusKey: "livetv:refresh",
+                    title: t("livetv.settings.refresh.title", {}, "Refresh guide now")
+                  })
+                : ""
+            }
+            ${
+              actionRow
+                ? actionRow({
+                    focusKey: "livetv:remove",
+                    title: t("livetv.settings.remove.title", {}, "Remove addon"),
+                    subtitle: t("livetv.settings.remove.subtitle", {}, "Live TV will ask for an addon link again.")
+                  })
+                : ""
+            }
+            ${
+              actionRow
+                ? actionRow({
+                    focusKey: "livetv:clearFavorites",
+                    title: t("livetv.settings.clearFavorites.title", {}, "Clear favorites")
+                  })
+                : ""
+            }
+            ${
+              actionRow
+                ? actionRow({
+                    focusKey: "livetv:clearRecents",
+                    title: t("livetv.settings.clearRecents.title", {}, "Clear recently watched")
+                  })
+                : ""
+            }
+            ${
+              actionRow
+                ? actionRow({
                     focusKey: "livetv:catalog",
                     title: t("livetv.settings.catalog.title", {}, "Channel catalog"),
                     subtitle: t("livetv.settings.catalog.subtitle", {}, "Choose which Stremio-TV catalog to load."),
@@ -1492,7 +1725,7 @@ export function renderLiveTvSettingsSection(ctx = {}) {
   return renderCollapsibleRow({
     focusKey: "livetv:toggle:section",
     title: t("livetv.settings.section.title", {}, "Live TV"),
-    subtitle: t("livetv.settings.section.subtitle", {}, "Stremio-TV addon, guide and channel numbering"),
+    subtitle: t("livetv.settings.section.subtitle", {}, "Addon link, guide refresh, favorites"),
     expanded: Boolean(expanded.liveTv),
     bodyHtml
   });
@@ -1515,6 +1748,8 @@ import { buildGuideRows, computeGuideWindowBounds } from "../core/liveGuideWindo
 import { liveSourceRepository } from "../data/liveSourceRepository.js";
 import { epgRepository } from "../data/epgRepository.js";
 import { liveEpgCacheStore } from "../data/liveEpgCacheStore.js";
+import { liveFavoritesStore } from "../data/liveFavoritesStore.js";
+import { liveRecentsStore } from "../data/liveRecentsStore.js";
 import { liveTvSettings } from "../liveTvSettings.js";
 import { buildGuideVirtualModel, getGuideVirtualWindow } from "./guideGridVirtualizer.js";
 import { buildGuideTimeTicks, computeGuideNowOffset, computeGuideProgramGeometry } from "./guideGridMetrics.js";
@@ -1595,14 +1830,24 @@ export function createLiveTvScreen() {
       .map((channel) => {
         const number = formatChannelNumber(state.channelNumbers[channel.id]);
         const selected = state.selectedChannelId === channel.id;
+        const favorite = liveFavoritesStore.has(channel.id);
         return `
-          <button class="livetv-channel focusable${selected ? " is-selected" : ""}"
-                  data-channel-id="${escapeHtml(channel.id)}"
-                  data-nav-zone="livetv-channels"
-                  type="button">
-            <span class="livetv-channel-number">${escapeHtml(number)}</span>
-            <span class="livetv-channel-name">${escapeHtml(channel.name)}</span>
-          </button>
+          <div class="livetv-channel-row">
+            <button class="livetv-channel focusable${selected ? " is-selected" : ""}"
+                    data-channel-id="${escapeHtml(channel.id)}"
+                    data-nav-zone="livetv-channels"
+                    type="button">
+              <span class="livetv-channel-number">${escapeHtml(number)}</span>
+              <span class="livetv-channel-name">${escapeHtml(channel.name)}</span>
+            </button>
+            <button class="livetv-favorite focusable"
+                    data-favorite-channel-id="${escapeHtml(channel.id)}"
+                    data-nav-zone="livetv-channels"
+                    type="button"
+                    aria-label="${favorite ? "Remove from favorites" : "Add to favorites"}">
+              ${favorite ? "★" : "☆"}
+            </button>
+          </div>
         `;
       })
       .join("");
@@ -1690,11 +1935,44 @@ export function createLiveTvScreen() {
       };
     },
 
+    renderSetupPrompt() {
+      if (!container) {
+        return;
+      }
+      container.innerHTML = `
+        <div class="livetv-setup">
+          <h2 class="livetv-setup-title">Set up Live TV</h2>
+          <p class="livetv-setup-body">Paste the manifest link of a Stremio addon with live channels. Guide data from the addon is loaded automatically.</p>
+          <button class="livetv-setup-action focusable" data-nav-zone="livetv-setup" type="button">Add addon link</button>
+        </div>
+      `;
+      ScreenUtils.indexFocusables(container, ".livetv-setup-action.focusable");
+      ScreenUtils.setInitialFocus(container, ".livetv-setup-action.focusable");
+    },
+
+    async submitSetupPrompt(addonBaseUrl = "") {
+      const normalized = String(addonBaseUrl || "")
+        .trim()
+        .replace(/\/manifest\.json$/i, "")
+        .replace(/\/+$/, "");
+      if (!normalized) {
+        return false;
+      }
+      liveTvSettings.set({ addonBaseUrl: normalized, addonConfigured: true });
+      await loadChannels();
+      this.render();
+      return true;
+    },
+
     async mount(params = {}, navigationContext = {}) {
       container = resolveLiveTvHost();
       mounted = true;
       scrollTop = 0;
       ScreenUtils.show(container);
+      if (liveTvSettings.get().addonConfigured !== true) {
+        this.renderSetupPrompt();
+        return;
+      }
       const restored = navigationContext?.restoredState || null;
       if (restored && Number.isFinite(Number(restored.scrollTop))) {
         scrollTop = Number(restored.scrollTop);
@@ -1706,6 +1984,7 @@ export function createLiveTvScreen() {
       }
       if (requestedChannelId) {
         liveTvState.setSelectedChannel(requestedChannelId);
+        liveRecentsStore.record(requestedChannelId);
       }
       await loadEpgForVisible(liveTvState.getState().channels);
       this.render();
@@ -1795,6 +2074,7 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         "\n"
         "export {\n"
         "  buildLiveTvHomeRow,\n"
+        "  buildLiveTvHomeRowFromState,\n"
         "  mergeLiveTvHomeRow,\n"
         "  isLiveTvRow,\n"
         "  LIVE_TV_HOME_ROW_KEY\n"
@@ -1872,8 +2152,8 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         '    iconType: "svg",\n'
         '    viewBox: "0 0 24 24",\n'
         "    iconMarkup:\n"
-        "      '<path d=\"M3.5 4A2.5 2.5 0 0 0 1 6.5v8A2.5 2.5 0 0 0 3.5 17h17a2.5 2.5 0 0 0 2.5-2.5v-8A2.5 2.5 0 0 0 20.5 4h-17Zm0 2h17a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-.5.5h-17a.5.5 0 0 1-.5-.5v-8a.5.5 0 0 1 .5-.5ZM8.5 19a1 1 0 0 1 1-1h5a1 1 0 1 1 0 2h-5a1 1 0 0 1-1-1Z\"/>"
-        "<path d=\"M10.4 7.61a.6.6 0 0 1 .91-.51l3.9 2.4a.6.6 0 0 1 0 1.02l-3.9 2.4a.6.6 0 0 1-.91-.51V7.61Z\"/>'\n"
+        "      '<path d=\"M3.5 4A2.5 2.5 0 0 0 1 6.5v8A2.5 2.5 0 0 0 3.5 17h17a2.5 2.5 0 0 0 2.5-2.5v-8A2.5 2.5 0 0 0 20.5 4h-17Zm0 2h17a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-.5.5h-17a.5.5 0 0 1-.5-.5v-8a.5.5 0 0 1 .5-.5ZM8.5 19a1 1 0 0 1 1-1h5a1 1 0 1 1 0 2h-5a1 1 0 0 1-1-1Z\"/>\"\n"
+        "\"<path d=\\\"M10.4 7.61a.6.6 0 0 1 .91-.51l3.9 2.4a.6.6 0 0 1 0 1.02l-3.9 2.4a.6.6 0 0 1-.91-.51V7.61Z\\\"/>'\\n\"\n"
         "  },\n"
         "  {\n"
         '    action: "gotoSearch",\n',
@@ -1886,11 +2166,95 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         "                      renderToggleRow: this.renderToggleRow.bind(this),\n"
         "                      renderActionRow: this.renderActionRow.bind(this),\n"
         "                      renderCollapsibleRow: this.renderCollapsibleRow.bind(this),\n"
-        "                      expanded: { ...(this.expandedSections || {}), liveTv: true }\n"
+        "                      expanded: { ...(this.expandedSections || {}), liveTv: Boolean(this.expandedSections?.layout?.liveTv) }\n"
         "                    })\n"
         "                  : \"\"\n"
         "              }\n"
-        "              ${\n                getTvRuntimePerformanceProfile().isTvRuntime\n                  ? this.renderActionRow({\n                      focusKey: \"layout:performanceMode\",\n",
+        "              ${\n"
+        "                getTvRuntimePerformanceProfile().isTvRuntime\n                  ? this.renderActionRow({\n"
+        "                      focusKey: \"layout:performanceMode\",\n",
+    ),
+    (
+        "js/ui/screens/settings/settingsScreenHelpers-10-create-default-expanded-state.js",
+        '  if (sectionId === "layout") {\n'
+        "    return {\n"
+        "      homeLayout: false,\n"
+        "      homeContent: false,\n"
+        "      continueWatching: false,\n"
+        "      detailPage: false,\n"
+        "      focusedPoster: false,\n"
+        "      cardAppearance: false\n"
+        "    };\n"
+        "  }",
+        '  if (sectionId === "layout") {\n'
+        "    return {\n"
+        "      homeLayout: false,\n"
+        "      homeContent: false,\n"
+        "      continueWatching: false,\n"
+        "      detailPage: false,\n"
+        "      focusedPoster: false,\n"
+        "      cardAppearance: false,\n"
+        "      liveTv: false\n"
+        "    };\n"
+        "  }",
+    ),
+    (
+        "js/ui/screens/home/homeScreenMethods-21-load-data.js",
+        "      this.rows = this.sortAndFilterRows(nextInitialRows, this.collections);",
+        "      this.rows = this.sortAndFilterRows(nextInitialRows, this.collections);\n"
+        "      this.rows = this.sortAndFilterRows(\n"
+        "        mergeLiveTvHomeRow(this.rows, buildLiveTvHomeRowFromState()),\n"
+        "        this.collections\n"
+        "      );",
+    ),
+    (
+        "js/ui/screens/settings/settingsLayoutActions.js",
+        '    this.actionMap.set("layout:collapseSidebar", () => {',
+        '    this.actionMap.set("livetv:toggle:section", () => {\n'
+        '      this.toggleExpandedSection("layout", "liveTv");\n'
+        "    });\n"
+        "\n"
+        '    this.actionMap.set("livetv:addon", () => {\n'
+        "      const current = liveTvSettings.get();\n"
+        "      this.openTextDialog({\n"
+        '        title: "Live TV settings",\n'
+        '        placeholder: "https://…/manifest.json",\n'
+        "        value: current.addonConfigured ? current.addonBaseUrl : \"\",\n"
+        "        onSubmit: (value) => {\n"
+        "          const normalized = String(value || \"\")\n"
+        "            .trim()\n"
+        "            .replace(/\\/manifest\\.json$/i, \"\")\n"
+        "            .replace(/\\/+$/, \"\");\n"
+        "          if (!normalized) {\n"
+        "            return false;\n"
+        "          }\n"
+        "          liveTvSettings.set({ addonBaseUrl: normalized, addonConfigured: true });\n"
+        "          return true;\n"
+        "        }\n"
+        "      });\n"
+        "    });\n"
+        "\n"
+        '    this.actionMap.set("livetv:refresh", () => {\n'
+        "      liveTvState.setChannels([], {});\n"
+        "    });\n"
+        "\n"
+        '    this.actionMap.set("livetv:remove", () => {\n'
+        "      liveTvSettings.set({\n"
+        "        addonBaseUrl: STREMIO_TV_ADDON_BASE_URL,\n"
+        "        addonConfigured: false\n"
+        "      });\n"
+        "      liveTvState.setChannels([], {});\n"
+        "    });\n"
+        "\n"
+        '    this.actionMap.set("livetv:clearFavorites", () => {\n'
+        "      liveFavoritesStore.clear();\n"
+        "    });\n"
+        "\n"
+        '    this.actionMap.set("livetv:clearRecents", () => {\n'
+        "      liveRecentsStore.clear();\n"
+        "    });\n"
+        "\n"
+        '    this.actionMap.set("layout:collapseSidebar", () => {',
     ),
 ]
 
