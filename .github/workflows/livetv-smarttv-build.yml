@@ -54,7 +54,10 @@ jobs:
         working-directory: /tmp/build
 
       - name: Run Live TV logic tests
-        run: node .github/livetv-tools/LiveTvSmartTvTest.mjs
+        run: |
+          mkdir -p /tmp/build/.github/livetv-tools
+          cp "$GITHUB_WORKSPACE/.github/livetv-tools/LiveTvSmartTvTest.mjs" /tmp/build/.github/livetv-tools/LiveTvSmartTvTest.mjs
+          node .github/livetv-tools/LiveTvSmartTvTest.mjs
         working-directory: /tmp/build
 
       - name: Package unsigned Tizen WGT
