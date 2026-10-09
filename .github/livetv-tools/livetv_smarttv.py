@@ -2209,8 +2209,8 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
     ),
     (
         "js/ui/screens/settings/settingsLayoutActions.js",
-        '    this.actionMap.set("layout:collapseSidebar", () => {',
-        '    this.actionMap.set("livetv:toggle:section", () => {\n'
+        '  this.actionMap.set("layout:toggle:homeLayout", () => {',
+        '  this.actionMap.set("livetv:toggle:section", () => {\n'
         '      this.toggleExpandedSection("layout", "liveTv");\n'
         "    });\n"
         "\n"
@@ -2254,7 +2254,7 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         "      liveRecentsStore.clear();\n"
         "    });\n"
         "\n"
-        '    this.actionMap.set("layout:collapseSidebar", () => {',
+        '  this.actionMap.set("layout:toggle:homeLayout", () => {',
     ),
 ]
 
