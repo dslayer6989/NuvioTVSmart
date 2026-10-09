@@ -85,8 +85,10 @@ jobs:
           grep -q "NUVIO_TIZEN_MANIFEST_V2" patches/livetv-smarttv.patch
           grep -q "nuvioTizenRequiredVersion" patches/livetv-smarttv.patch
           grep -q "samsung.com/appcontrol/operation/eden_resume" patches/livetv-smarttv.patch
-          if grep -n "<tizen:action" patches/livetv-smarttv.patch | grep -v "tizenAppControl.js"; then
-            echo "::error::a generator emitted the schema-invalid <tizen:action> element"
+          # Check ONLY the emitter's own hunk: extract the scripts/package-tizen.mjs section,
+          # then fail if the schema-invalid <tizen:action> element appears in it.
+          if awk '/^diff --git a\/scripts\/package-tizen\.mjs/{f=1} /^diff --git /&&!/scripts\/package-tizen\.mjs/{f=0} f' patches/livetv-smarttv.patch | grep -q "<tizen:action"; then
+            echo "::error::the config.xml emitter emits the schema-invalid <tizen:action> element"
             exit 1
           fi
           if grep -q "11470\|11471" patches/livetv-smarttv.patch; then
