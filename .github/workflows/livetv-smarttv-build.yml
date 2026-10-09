@@ -36,23 +36,20 @@ jobs:
           cd /tmp/build
           git apply "$GITHUB_WORKSPACE/patches/livetv-smarttv.patch"
 
+      - name: Install committed local.properties
+        run: |
+          test -s "$GITHUB_WORKSPACE/local.properties" || { echo "::error::local.properties missing on dev"; exit 1; }
+          cp "$GITHUB_WORKSPACE/local.properties" /tmp/build/local.properties
+          grep -q '^NUVIO_SUPABASE_URL=' /tmp/build/local.properties || { echo "::error::NUVIO_SUPABASE_URL not set"; exit 1; }
+          grep -q '^NUVIO_SUPABASE_ANON_KEY=' /tmp/build/local.properties || { echo "::error::NUVIO_SUPABASE_ANON_KEY not set"; exit 1; }
+          echo "local.properties installed with required keys."
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: /tmp/build/package-lock.json
-
-      - name: Write release local properties
-        env:
-          NUVIO_LOCAL_PROPERTIES: ${{ secrets.NUVIO_LOCAL_PROPERTIES }}
-        run: |
-          LOCAL_PROPERTIES="$NUVIO_LOCAL_PROPERTIES"
-          if [ -z "${LOCAL_PROPERTIES//[[:space:]]/}" ]; then
-            echo "::error::NUVIO_LOCAL_PROPERTIES secret is required to build release artifacts with runtime env."
-            exit 1
-          fi
-          printf '%s\n' "$LOCAL_PROPERTIES" > /tmp/build/local.properties
 
       - name: Install dependencies
         run: npm ci
@@ -82,10 +79,10 @@ jobs:
         run: |
           cd /tmp/build
           set -- NuvioTV001_*.wgt
-          test -e "$1" || { echo "::error::Tizen WGT missing"; exit 1; }
+          test -e "$1" || { echo "::error::Tizen WGT missing"; ls -la; exit 1; }
           mv "$1" "NuvioTV-Tizen-${TAG_NAME}.wgt"
           set -- space.nuvio.webos_*_all.ipk
-          test -e "$1" || { echo "::error::webOS IPK missing"; exit 1; }
+          test -e "$1" || { echo "::error::webOS IPK missing"; ls -la; exit 1; }
           mv "$1" "NuvioTV-webOS-${TAG_NAME}.ipk"
           echo "wgt=NuvioTV-Tizen-${TAG_NAME}.wgt" >> "$GITHUB_OUTPUT"
           echo "ipk=NuvioTV-webOS-${TAG_NAME}.ipk" >> "$GITHUB_OUTPUT"
