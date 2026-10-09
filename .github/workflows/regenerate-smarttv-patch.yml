@@ -46,10 +46,24 @@ jobs:
 
       - name: Generate Live TV tree into pristine base
         run: |
-          python .github/livetv-tools/livetv_smarttv.py --root /tmp/pristine
-          python .github/livetv-tools/patch_tizen_manifest.py
-          python .github/livetv-tools/inject_webos_manifest.py --root /tmp/pristine
-        working-directory: /tmp/pristine
+          set -euo pipefail
+          # Tools live in the WORKSPACE. The generated tree lives in /tmp/pristine.
+          # livetv_smarttv.py + inject_webos_manifest.py take --root, so invoke them
+          # by workspace-absolute path (their CWD is irrelevant).
+          python "$GITHUB_WORKSPACE/.github/livetv-tools/livetv_smarttv.py" --root /tmp/pristine
+          python "$GITHUB_WORKSPACE/.github/livetv-tools/inject_webos_manifest.py" --root /tmp/pristine
+          # patch_tizen_manifest.py takes NO --root: it rewrites scripts/package-tizen.mjs
+          # RELATIVE TO CWD, so it MUST run from inside /tmp/pristine.
+          cd /tmp/pristine
+          python "$GITHUB_WORKSPACE/.github/livetv-tools/patch_tizen_manifest.py"
+          # Verify the emitter was actually rewritten.
+          grep -q "NUVIO_TIZEN_MANIFEST_V2" /tmp/pristine/scripts/package-tizen.mjs
+          grep -q "nuvioTizenRequiredVersion" /tmp/pristine/scripts/package-tizen.mjs
+          grep -q "samsung.com/appcontrol/operation/eden_resume" /tmp/pristine/scripts/package-tizen.mjs
+          if grep -q "<tizen:action" /tmp/pristine/scripts/package-tizen.mjs; then
+            echo "::error::schema-invalid <tizen:action> present in the patched emitter"
+            exit 1
+          fi
 
       - name: Produce cumulative patch
         run: |
