@@ -107,6 +107,7 @@ jobs:
 
       - name: Assert installer file contract (both WGTs)
         run: |
+          cd /tmp/build
           for w in "$LEGACY_NAME" "$MODERN_NAME"; do
             echo "== $w =="
             for f in config.xml main.js services/tizen/enginefs-service.js services/tizen/runtime/media-http.cjs services/tizen/runtime/tx3g-subtitle-parser.cjs services/tizen/runtime/tx3g-subtitle-service.cjs services/tizen/runtime/embedded-text-subtitle-parser.cjs; do
