@@ -1,0 +1,340 @@
+name: Live TV Smart TV (regenerate -> publish -> build)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Modern release tag (legacy tag is derived as <tag>-legacy)"
+        required: true
+        default: "livetv-smarttv-build-4"
+
+concurrency:
+  group: livetv-smarttv-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile tools
+        run: |
+          python -m py_compile .github/livetv-tools/livetv_smarttv.py
+          python -m py_compile .github/livetv-tools/patch_tizen_manifest.py
+          python -m py_compile .github/livetv-tools/inject_webos_manifest.py
+          python -m py_compile .github/livetv-tools/fetch_run_log.py
+
+      - name: Check out pristine pinned base
+        run: |
+          rm -rf /tmp/pristine
+          git clone --quiet https://github.com/NuvioMedia/NuvioTVSmart.git /tmp/pristine
+          cd /tmp/pristine
+          git checkout --quiet 72473523c18a3fb4bef3a0dba8fb8f91548b3baa
+
+      - name: Generate Live TV tree into pristine base
+        run: |
+          set -euo pipefail
+          python "$GITHUB_WORKSPACE/.github/livetv-tools/livetv_smarttv.py" --root /tmp/pristine
+          python "$GITHUB_WORKSPACE/.github/livetv-tools/inject_webos_manifest.py" --root /tmp/pristine
+          cd /tmp/pristine
+          python "$GITHUB_WORKSPACE/.github/livetv-tools/patch_tizen_manifest.py"
+          grep -q "NUVIO_TIZEN_MANIFEST_V2" /tmp/pristine/scripts/package-tizen.mjs
+          grep -q "nuvioTizenRequiredVersion" /tmp/pristine/scripts/package-tizen.mjs
+          grep -q "samsung.com/appcontrol/operation/eden_resume" /tmp/pristine/scripts/package-tizen.mjs
+          if grep -q "<tizen:action" /tmp/pristine/scripts/package-tizen.mjs; then
+            echo "::error::schema-invalid <tizen:action> present in the patched emitter"
+            exit 1
+          fi
+
+      - name: Produce cumulative patch
+        run: |
+          mkdir -p patches
+          cd /tmp/pristine
+          git add -A
+          git diff --cached --binary > "$GITHUB_WORKSPACE/patches/livetv-smarttv.patch"
+          wc -l "$GITHUB_WORKSPACE/patches/livetv-smarttv.patch"
+
+      - name: Assert patch content
+        run: |
+          test -s patches/livetv-smarttv.patch
+          grep -q "js/livetv/playback/livePlaybackStrategy.js" patches/livetv-smarttv.patch
+          grep -q "js/livetv/ui/guideGridVirtualizer.js" patches/livetv-smarttv.patch
+          grep -q "TIZEN_SEARCH_ACTION" patches/livetv-smarttv.patch
+          grep -q "NUVIO_TIZEN_MANIFEST_V2" patches/livetv-smarttv.patch
+          grep -q "nuvioTizenRequiredVersion" patches/livetv-smarttv.patch
+          grep -q "samsung.com/appcontrol/operation/eden_resume" patches/livetv-smarttv.patch
+          if awk '/^diff --git a\/scripts\/package-tizen\.mjs/{f=1} /^diff --git /&&!/scripts\/package-tizen\.mjs/{f=0} f' patches/livetv-smarttv.patch | grep -q "<tizen:action"; then
+            echo "::error::the config.xml emitter emits the schema-invalid <tizen:action> element"
+            exit 1
+          fi
+          if grep -q "11470\|11471" patches/livetv-smarttv.patch; then
+            echo "::error::patch introduces a forbidden fallback port"
+            exit 1
+          fi
+
+      - name: Upload patch artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: livetv-smarttv-patch
+          path: patches/livetv-smarttv.patch
+          if-no-files-found: error
+
+  publish:
+    needs: regenerate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download patch artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: livetv-smarttv-patch
+          path: patches
+
+      - name: Check out pristine pinned base
+        run: |
+          rm -rf /tmp/pristine
+          git clone --quiet https://github.com/NuvioMedia/NuvioTVSmart.git /tmp/pristine
+          cd /tmp/pristine
+          git checkout --quiet 72473523c18a3fb4bef3a0dba8fb8f91548b3baa
+
+      - name: Apply patch to pristine base
+        run: |
+          cd /tmp/pristine
+          git apply --check "$GITHUB_WORKSPACE/patches/livetv-smarttv.patch"
+          git apply "$GITHUB_WORKSPACE/patches/livetv-smarttv.patch"
+
+      - name: Verify generated tree
+        run: |
+          python "$GITHUB_WORKSPACE/.github/livetv-tools/livetv_smarttv.py" --root /tmp/pristine --check
+          test -f /tmp/pristine/js/livetv/playback/livePlaybackStrategy.js
+          test -f /tmp/pristine/js/livetv/ui/guideGridVirtualizer.js
+          grep -q "livetv: liveTvScreen" /tmp/pristine/js/ui/navigation/router.js
+          grep -q "guide: liveTvScreen" /tmp/pristine/js/ui/navigation/router.js
+          grep -q "appcontrol/operation/search" /tmp/pristine/js/livetv/integration/tizenAppControl.js
+          grep -q "NUVIO_TIZEN_MANIFEST_V2" /tmp/pristine/scripts/package-tizen.mjs
+          grep -q "nuvioTizenRequiredVersion" /tmp/pristine/scripts/package-tizen.mjs
+          grep -q "samsung.com/appcontrol/operation/eden_resume" /tmp/pristine/scripts/package-tizen.mjs
+          if grep -q "<tizen:action" /tmp/pristine/scripts/package-tizen.mjs; then
+            echo "::error::schema-invalid <tizen:action> present in the patched generator"
+            exit 1
+          fi
+
+      - name: Upload verified patch artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: livetv-smarttv-patch-verified
+          path: patches/livetv-smarttv.patch
+          if-no-files-found: error
+
+  build:
+    needs: publish
+    runs-on: ubuntu-latest
+    env:
+      MODERN_NAME: NuvioTV-Tizen6-2021plus.wgt
+      LEGACY_NAME: NuvioTV-Tizen5.5Max-2020Legacy.wgt
+    steps:
+      - name: Check out dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download verified patch artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: livetv-smarttv-patch-verified
+          path: patches
+
+      - name: Check out pristine pinned base
+        run: |
+          rm -rf /tmp/build
+          git clone --quiet https://github.com/NuvioMedia/NuvioTVSmart.git /tmp/build
+          cd /tmp/build
+          git checkout --quiet 72473523c18a3fb4bef3a0dba8fb8f91548b3baa
+
+      - name: Apply Live TV patch
+        run: |
+          cd /tmp/build
+          git apply "$GITHUB_WORKSPACE/patches/livetv-smarttv.patch"
+
+      - name: Install committed local.properties
+        run: |
+          test -s "$GITHUB_WORKSPACE/local.properties" || { echo "::error::local.properties missing on dev"; exit 1; }
+          cp "$GITHUB_WORKSPACE/local.properties" /tmp/build/local.properties
+          grep -q '^NUVIO_SUPABASE_URL=' /tmp/build/local.properties || { echo "::error::NUVIO_SUPABASE_URL not set"; exit 1; }
+          grep -q '^NUVIO_SUPABASE_ANON_KEY=' /tmp/build/local.properties || { echo "::error::NUVIO_SUPABASE_ANON_KEY not set"; exit 1; }
+          echo "local.properties installed with required keys."
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: /tmp/build
+
+      - name: Run Live TV logic tests
+        run: |
+          mkdir -p /tmp/build/.github/livetv-tools
+          cp "$GITHUB_WORKSPACE/.github/livetv-tools/LiveTvSmartTvTest.mjs" /tmp/build/.github/livetv-tools/LiveTvSmartTvTest.mjs
+          node .github/livetv-tools/LiveTvSmartTvTest.mjs
+        working-directory: /tmp/build
+
+      - name: Build LEGACY WGT (Tizen 4.0-5.5, 2018-2020)
+        env:
+          NUVIO_REQUIRE_LOCAL_PROPERTIES: "1"
+          TIZEN_INCLUDE_ENGINEFS_SERVICE: "1"
+          TIZEN_TARGET_MAJOR: "5"
+        run: |
+          rm -f ./*.wgt || true
+          npm run package:tizen
+          test -f NuvioTV001_1.2.3.wgt || { echo "::error::legacy artefact missing"; ls -la; exit 1; }
+          mkdir -p /tmp/wgtstash
+          mv NuvioTV001_1.2.3.wgt "/tmp/wgtstash/$LEGACY_NAME"
+          unzip -p "/tmp/wgtstash/$LEGACY_NAME" config.xml > /tmp/legacy.xml
+          grep -q 'required_version="4.0"' /tmp/legacy.xml || { echo "::error::legacy required_version wrong"; cat /tmp/legacy.xml; exit 1; }
+          grep -q 'samsung.com/appcontrol/operation/eden_resume' /tmp/legacy.xml || { echo "::error::legacy app-control wrong"; exit 1; }
+          grep -q 'http://tizen.org/feature/web.service' /tmp/legacy.xml || { echo "::error::legacy missing web.service feature"; exit 1; }
+          grep -q 'services/tizen/enginefs-service.js' /tmp/legacy.xml || { echo "::error::legacy missing EngineFS service"; exit 1; }
+          if grep -q '<tizen:action' /tmp/legacy.xml; then echo "::error::legacy has schema-invalid tizen:action"; exit 1; fi
+          ls -l "/tmp/wgtstash/$LEGACY_NAME"
+        working-directory: /tmp/build
+
+      - name: Build MODERN WGT (Tizen 6.0+, 2021+)
+        env:
+          NUVIO_REQUIRE_LOCAL_PROPERTIES: "1"
+          TIZEN_INCLUDE_ENGINEFS_SERVICE: "1"
+          TIZEN_TARGET_MAJOR: "6"
+        run: |
+          rm -f ./*.wgt || true
+          npm run package:tizen
+          test -f NuvioTV001_1.2.3.wgt || { echo "::error::modern artefact missing"; ls -la; exit 1; }
+          mv NuvioTV001_1.2.3.wgt "$MODERN_NAME"
+          unzip -p "$MODERN_NAME" config.xml > /tmp/modern.xml
+          grep -q 'required_version="6.0"' /tmp/modern.xml || { echo "::error::modern required_version wrong"; cat /tmp/modern.xml; exit 1; }
+          grep -q 'samsung.com/appcontrol/operation/eden_resume' /tmp/modern.xml || { echo "::error::modern app-control wrong"; exit 1; }
+          if grep -q '<tizen:action' /tmp/modern.xml; then echo "::error::modern has schema-invalid tizen:action"; exit 1; fi
+          cmp -s "/tmp/wgtstash/$LEGACY_NAME" "/tmp/build/$MODERN_NAME" && { echo "::error::legacy and modern WGTs are identical - rename picked the wrong artefact"; exit 1; }
+          ls -l "$MODERN_NAME"
+        working-directory: /tmp/build
+
+      - name: Assert installer file contract (both WGTs)
+        run: |
+          cd /tmp/build
+          for w in "/tmp/wgtstash/NuvioTV-Tizen5.5Max-2020Legacy.wgt" "/tmp/build/NuvioTV-Tizen6-2021plus.wgt"; do
+            echo "== $w =="
+            for f in config.xml main.js services/tizen/enginefs-service.js services/tizen/runtime/media-http.cjs services/tizen/runtime/tx3g-subtitle-parser.cjs services/tizen/runtime/tx3g-subtitle-service.cjs services/tizen/runtime/embedded-text-subtitle-parser.cjs; do
+              unzip -l "$w" "$f" >/dev/null || { echo "::error::MISSING $f in $w"; exit 1; }
+            done
+            unzip -p "$w" services/tizen/enginefs-service.js | grep -q 'process.env.PORT = process.env.PORT || "2710"' || { echo "::error::EngineFS port contract broken in $w"; exit 1; }
+            if unzip -p "$w" services/tizen/enginefs-service.js | grep -Eq '11470|11471|FALLBACK_PORT|candidateIndex'; then echo "::error::forbidden fallback port logic in $w"; exit 1; fi
+          done
+        working-directory: /tmp/build
+
+      - name: Package webOS IPK
+        env:
+          NUVIO_REQUIRE_LOCAL_PROPERTIES: "1"
+        run: npm run package:webos
+        working-directory: /tmp/build
+
+      - name: Normalize webOS artifact
+        id: artifacts
+        env:
+          TAG_NAME: ${{ inputs.tag }}
+        run: |
+          cd /tmp/build
+          set -- space.nuvio.webos_*_all.ipk
+          test -e "$1" || { echo "::error::webOS IPK missing"; ls -la; exit 1; }
+          mv "$1" "NuvioTV-webOS-${TAG_NAME}.ipk"
+          echo "ipk=NuvioTV-webOS-${TAG_NAME}.ipk" >> "$GITHUB_OUTPUT"
+
+      - name: Create LEGACY release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ inputs.tag }}
+          MODERN_NAME: NuvioTV-Tizen6-2021plus.wgt
+          LEGACY_NAME: NuvioTV-Tizen5.5Max-2020Legacy.wgt
+        run: |
+          LEGACY_TAG="${TAG_NAME}-legacy"
+          cat > /tmp/legacy-notes.md <<'NOTES'
+          ### Nuvio TV Live TV - Samsung Tizen 4.0 through 5.5 (LEGACY)
+
+          **Asset:** `NuvioTV-Tizen5.5Max-2020Legacy.wgt` (required_version 4.0)
+
+          | TV year | Tizen |
+          |---|---|
+          | 2018 | 4.0 |
+          | 2019 | 5.0 |
+          | 2020 | 5.5 (e.g. TU7000, Q90T) |
+
+          Install this LEGACY build on 2018-2020 Samsung TVs. The schema-invalid `<tizen:action>` element that caused `install failed[118, -19] Parsing error` is fixed here; app-control now uses `<tizen:operation name="http://samsung.com/appcontrol/operation/eden_resume"/>`.
+
+          Includes the local P2P service (EngineFS, port 2710). No PluginService (Tizen 6+ only).
+
+          The WGT is UNSIGNED on purpose: the Nuvio TV Installer signs it locally for your TV's DUID.
+          NOTES
+          gh release create "$LEGACY_TAG" \
+            "/tmp/wgtstash/$LEGACY_NAME" \
+            --title "Nuvio TV Live TV - $LEGACY_TAG (Tizen 4.0-5.5, 2018-2020)" \
+            --notes-file /tmp/legacy-notes.md \
+            --repo "${{ github.repository }}"
+
+      - name: Create MODERN release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ inputs.tag }}
+          IPK: ${{ steps.artifacts.outputs.ipk }}
+          MODERN_NAME: NuvioTV-Tizen6-2021plus.wgt
+          LEGACY_NAME: NuvioTV-Tizen5.5Max-2020Legacy.wgt
+        run: |
+          cat > /tmp/modern-notes.md <<'NOTES'
+          ### Nuvio TV Live TV - Samsung Tizen 6.0 and newer / LG webOS
+
+          **Samsung asset:** `NuvioTV-Tizen6-2021plus.wgt` (Tizen 6.0+, 2021 and newer)
+          **LG asset:** `NuvioTV-webOS-<tag>.ipk`
+
+          | TV year | Tizen |
+          |---|---|
+          | 2021 | 6.0 |
+          | 2022 | 6.5 |
+          | 2023 | 7.0 |
+          | 2024 | 8.0 |
+          | 2025 | 9.0 |
+          | 2026 | 10.0 |
+
+          Includes the local P2P service (EngineFS, port 2710) and the Tizen 6+ PluginService bridge (port 2711).
+
+          The WGT is UNSIGNED on purpose: the Nuvio TV Installer signs it locally for your TV's DUID.
+          NOTES
+          gh release create "$TAG_NAME" \
+            "/tmp/build/$MODERN_NAME" "/tmp/build/$IPK" \
+            --title "Nuvio TV Live TV - $TAG_NAME (Tizen 6.0+, 2021+)" \
+            --notes-file /tmp/modern-notes.md \
+            --repo "${{ github.repository }}"
