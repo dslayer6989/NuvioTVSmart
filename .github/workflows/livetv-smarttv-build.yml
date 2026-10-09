@@ -75,16 +75,16 @@ jobs:
         run: |
           rm -f ./*.wgt || true
           npm run package:tizen
-          src="$(ls -1 ./*.wgt | head -n1)"
-          test -n "$src" || { echo "::error::legacy WGT not produced"; ls -la; exit 1; }
-          mv "$src" "$LEGACY_NAME"
-          unzip -p "$LEGACY_NAME" config.xml > /tmp/legacy.xml
+          test -f NuvioTV001_1.2.3.wgt || { echo "::error::legacy artefact missing"; ls -la; exit 1; }
+          mkdir -p /tmp/wgtstash
+          mv NuvioTV001_1.2.3.wgt "/tmp/wgtstash/$LEGACY_NAME"
+          unzip -p "/tmp/wgtstash/$LEGACY_NAME" config.xml > /tmp/legacy.xml
           grep -q 'required_version="4.0"' /tmp/legacy.xml || { echo "::error::legacy required_version wrong"; cat /tmp/legacy.xml; exit 1; }
           grep -q 'samsung.com/appcontrol/operation/eden_resume' /tmp/legacy.xml || { echo "::error::legacy app-control wrong"; exit 1; }
           grep -q 'http://tizen.org/feature/web.service' /tmp/legacy.xml || { echo "::error::legacy missing web.service feature"; exit 1; }
           grep -q 'services/tizen/enginefs-service.js' /tmp/legacy.xml || { echo "::error::legacy missing EngineFS service"; exit 1; }
           if grep -q '<tizen:action' /tmp/legacy.xml; then echo "::error::legacy has schema-invalid tizen:action"; exit 1; fi
-          ls -l "$LEGACY_NAME"
+          ls -l "/tmp/wgtstash/$LEGACY_NAME"
         working-directory: /tmp/build
 
       - name: Build MODERN WGT (Tizen 6.0+, 2021+)
@@ -93,15 +93,15 @@ jobs:
           TIZEN_INCLUDE_ENGINEFS_SERVICE: "1"
           TIZEN_TARGET_MAJOR: "6"
         run: |
-          rm -f NuvioTV001_*.wgt || true
+          rm -f ./*.wgt || true
           npm run package:tizen
-          src="$(ls -1 ./*.wgt | head -n1)"
-          test -n "$src" || { echo "::error::modern WGT not produced"; ls -la; exit 1; }
-          mv "$src" "$MODERN_NAME"
+          test -f NuvioTV001_1.2.3.wgt || { echo "::error::modern artefact missing"; ls -la; exit 1; }
+          mv NuvioTV001_1.2.3.wgt "$MODERN_NAME"
           unzip -p "$MODERN_NAME" config.xml > /tmp/modern.xml
           grep -q 'required_version="6.0"' /tmp/modern.xml || { echo "::error::modern required_version wrong"; cat /tmp/modern.xml; exit 1; }
           grep -q 'samsung.com/appcontrol/operation/eden_resume' /tmp/modern.xml || { echo "::error::modern app-control wrong"; exit 1; }
           if grep -q '<tizen:action' /tmp/modern.xml; then echo "::error::modern has schema-invalid tizen:action"; exit 1; fi
+          cmp -s "/tmp/wgtstash/$LEGACY_NAME" "/tmp/build/$MODERN_NAME" && { echo "::error::legacy and modern WGTs are identical — rename picked the wrong artefact"; exit 1; }
           ls -l "$MODERN_NAME"
         working-directory: /tmp/build
 
@@ -111,7 +111,7 @@ jobs:
           LEGACY_NAME: NuvioTV-Tizen5.5Max-2020Legacy.wgt
         run: |
           cd /tmp/build
-          for w in "NuvioTV-Tizen5.5Max-2020Legacy.wgt" "NuvioTV-Tizen6-2021plus.wgt"; do
+          for w in "/tmp/wgtstash/NuvioTV-Tizen5.5Max-2020Legacy.wgt" "/tmp/build/NuvioTV-Tizen6-2021plus.wgt"; do
             echo "== $w =="
             for f in config.xml main.js services/tizen/enginefs-service.js services/tizen/runtime/media-http.cjs services/tizen/runtime/tx3g-subtitle-parser.cjs services/tizen/runtime/tx3g-subtitle-service.cjs services/tizen/runtime/embedded-text-subtitle-parser.cjs; do
               unzip -l "$w" "$f" >/dev/null || { echo "::error::MISSING $f in $w"; exit 1; }
@@ -164,7 +164,7 @@ jobs:
           The WGT is UNSIGNED on purpose: the Nuvio TV Installer signs it locally for your TV's DUID.
           NOTES
           gh release create "$LEGACY_TAG" \
-            "/tmp/build/$LEGACY_NAME" \
+            "/tmp/wgtstash/$LEGACY_NAME" \
             --title "Nuvio TV Live TV - $LEGACY_TAG (Tizen 4.0-5.5, 2018-2020)" \
             --notes-file /tmp/legacy-notes.md \
             --repo "${{ github.repository }}"
