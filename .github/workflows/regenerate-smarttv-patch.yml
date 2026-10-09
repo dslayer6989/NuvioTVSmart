@@ -33,7 +33,7 @@ jobs:
       - name: Compile tools
         run: |
           python -m py_compile .github/livetv-tools/livetv_smarttv.py
-          python -m py_compile .github/livetv-tools/inject_tizen_config.py
+          python -m py_compile .github/livetv-tools/patch_tizen_manifest.py
           python -m py_compile .github/livetv-tools/inject_webos_manifest.py
           python -m py_compile .github/livetv-tools/fetch_run_log.py
 
@@ -47,8 +47,9 @@ jobs:
       - name: Generate Live TV tree into pristine base
         run: |
           python .github/livetv-tools/livetv_smarttv.py --root /tmp/pristine
-          python .github/livetv-tools/inject_tizen_config.py --root /tmp/pristine
+          python .github/livetv-tools/patch_tizen_manifest.py
           python .github/livetv-tools/inject_webos_manifest.py --root /tmp/pristine
+        working-directory: /tmp/pristine
 
       - name: Produce cumulative patch
         run: |
@@ -63,7 +64,14 @@ jobs:
           test -s patches/livetv-smarttv.patch
           grep -q "js/livetv/playback/livePlaybackStrategy.js" patches/livetv-smarttv.patch
           grep -q "js/livetv/ui/guideGridVirtualizer.js" patches/livetv-smarttv.patch
-          grep -q "appcontrol/operation/search" patches/livetv-smarttv.patch
+          grep -q "TIZEN_SEARCH_ACTION" patches/livetv-smarttv.patch
+          grep -q "NUVIO_TIZEN_MANIFEST_V2" patches/livetv-smarttv.patch
+          grep -q "nuvioTizenRequiredVersion" patches/livetv-smarttv.patch
+          grep -q "samsung.com/appcontrol/operation/eden_resume" patches/livetv-smarttv.patch
+          if grep -q "<tizen:action" patches/livetv-smarttv.patch; then
+            echo "::error::patch still contains the schema-invalid <tizen:action> element"
+            exit 1
+          fi
           if grep -q "11470\|11471" patches/livetv-smarttv.patch; then
             echo "::error::patch introduces a forbidden fallback port"
             exit 1
@@ -78,5 +86,5 @@ jobs:
             echo "No patch changes to commit"
             exit 0
           fi
-          git commit -m "chore(livetv): regenerate smarttv patch"
+          git commit -m "chore(livetv): regenerate smarttv patch with tier-aware Tizen manifest"
           git push origin HEAD:dev
