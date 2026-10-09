@@ -1902,14 +1902,14 @@ index ac5c1e2..4fcd1f6 100644
      return getAdapter().prepareVideoElement?.(videoElement);
    }
 diff --git a/js/ui/navigation/router.js b/js/ui/navigation/router.js
-index 0c0ea38..226dee2 100644
+index 0c0ea38..7e2f5c7 100644
 --- a/js/ui/navigation/router.js
 +++ b/js/ui/navigation/router.js
 @@ -25,6 +25,7 @@ import { CastDetailScreen } from "../screens/cast/castDetailScreen.js";
  import { CatalogSeeAllScreen } from "../screens/catalog/catalogSeeAllScreen.js";
  import { TmdbEntityBrowseScreen } from "../screens/tmdb/tmdbEntityBrowseScreen.js";
  import { FolderDetailScreen } from "../screens/collection/folderDetailScreen.js";
-+import { LiveTvScreen } from "../../livetv/ui/liveTvScreen.js";
++import { liveTvScreen } from "../../livetv/ui/liveTvScreen.js";
  import { Platform } from "../../platform/index.js";
  import { TizenCapabilities } from "../../platform/tizen/tizenCapabilities.js";
  import { RouteStateStore } from "./routeStateStore.js";
@@ -1917,7 +1917,7 @@ index 0c0ea38..226dee2 100644
    CatalogSeeAllScreen,
    TmdbEntityBrowseScreen,
    FolderDetailScreen,
-+  LiveTvScreen,
++  liveTvScreen,
    Platform,
    TizenCapabilities,
    RouteStateStore,
@@ -1927,8 +1927,8 @@ index 0c0ea38..226dee2 100644
      tmdbEntityBrowse: TmdbEntityBrowseScreen,
 -    folderDetail: FolderDetailScreen
 +    folderDetail: FolderDetailScreen,
-+    livetv: LiveTvScreen,
-+    guide: LiveTvScreen
++    livetv: liveTvScreen,
++    guide: liveTvScreen
    },
    ...createRouterMethods01(),
    ...createRouterMethods02(),
