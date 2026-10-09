@@ -1734,17 +1734,17 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         "js/ui/navigation/router.js",
         'import { FolderDetailScreen } from "../screens/collection/folderDetailScreen.js";\n',
         'import { FolderDetailScreen } from "../screens/collection/folderDetailScreen.js";\n'
-        'import { LiveTvScreen } from "../../livetv/ui/liveTvScreen.js";\n',
+        'import { liveTvScreen } from "../../livetv/ui/liveTvScreen.js";\n',
     ),
     (
         "js/ui/navigation/router.js",
         "  FolderDetailScreen,\n  Platform,\n",
-        "  FolderDetailScreen,\n  LiveTvScreen,\n  Platform,\n",
+        "  FolderDetailScreen,\n  liveTvScreen,\n  Platform,\n",
     ),
     (
         "js/ui/navigation/router.js",
         "    folderDetail: FolderDetailScreen\n  },",
-        "    folderDetail: FolderDetailScreen,\n    livetv: LiveTvScreen,\n    guide: LiveTvScreen\n  },",
+        "    folderDetail: FolderDetailScreen,\n    livetv: liveTvScreen,\n    guide: liveTvScreen\n  },",
     ),
     (
         "js/ui/screens/home/homeScreenContextDependenciesSources.js",
