@@ -40,7 +40,14 @@ jobs:
           test -f /tmp/pristine/js/livetv/ui/guideGridVirtualizer.js
           grep -q "livetv: liveTvScreen" /tmp/pristine/js/ui/navigation/router.js
           grep -q "guide: liveTvScreen" /tmp/pristine/js/ui/navigation/router.js
-          grep -q "appcontrol/operation/search" /tmp/pristine/scripts/package-tizen.mjs
+          grep -q "appcontrol/operation/search" /tmp/pristine/js/livetv/integration/tizenAppControl.js
+          grep -q "NUVIO_TIZEN_MANIFEST_V2" /tmp/pristine/scripts/package-tizen.mjs
+          grep -q "nuvioTizenRequiredVersion" /tmp/pristine/scripts/package-tizen.mjs
+          grep -q "samsung.com/appcontrol/operation/eden_resume" /tmp/pristine/scripts/package-tizen.mjs
+          if grep -q "<tizen:action" /tmp/pristine/scripts/package-tizen.mjs; then
+            echo "::error::schema-invalid <tizen:action> present in the patched generator"
+            exit 1
+          fi
 
       - name: Upload patch artifact
         uses: actions/upload-artifact@v4
