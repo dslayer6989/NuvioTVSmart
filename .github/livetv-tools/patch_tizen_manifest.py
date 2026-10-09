@@ -39,6 +39,13 @@ WHAT THIS TOOL DOES (idempotent; marker-guarded)
 5. Hard-fails (non-zero exit) if a <tizen:action> token survives anywhere in the
    file after all transforms.
 
+ORDER OF OPERATIONS (important)
+-------------------------------
+read -> BAD_TOKEN check -> marker early-return -> transforms -> write.
+The BAD_TOKEN guard runs BEFORE the marker early-return so a tree that is already
+marked but still dirty (e.g. a stale patch re-applied on top of a marked file) is
+still caught instead of silently passing.
+
 The tool never weakens an assertion and never hand-edits the mjs at runtime: it
 is the single source of truth for the manifest edit, so the cumulative patch
 regenerates deterministically.
@@ -99,6 +106,20 @@ def main() -> int:
 
     src = PACKAGER.read_text(encoding="utf-8")
 
+    # Guard FIRST: a pre-marked-but-dirty tree must still be caught. This runs
+    # before the marker early-return so a stale patch re-applied on top of an
+    # already-marked emitter cannot silently pass.
+    if BAD_TOKEN in src:
+        print(
+            "[patch_tizen_manifest] ERROR: a '<tizen:action' token is present in "
+            f"{PACKAGER} BEFORE transforms (pre-marked-but-dirty tree). The retired "
+            ".github/livetv-tools/inject_tizen_config.py must be deleted and removed "
+            "from all workflows, and any stale cumulative patch must be cleared, "
+            "before re-running.",
+            file=sys.stderr,
+        )
+        return 3
+
     if MARKER in src:
         print("[patch_tizen_manifest] already patched (marker present); nothing to do.")
         return 0
@@ -139,7 +160,7 @@ def main() -> int:
     src = HELPER + "\n" + src
     transforms += 1
 
-    # Hard-fail if any schema-invalid token survives.
+    # Hard-fail if any schema-invalid token survives AFTER transforms.
     if BAD_TOKEN in src:
         print(
             "[patch_tizen_manifest] ERROR: a leftover '<tizen:action' token survived all "
