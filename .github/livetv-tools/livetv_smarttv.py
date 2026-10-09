@@ -1503,16 +1503,12 @@ export { LIVE_TV_SETTINGS_KEY };
 
 FILES["js/livetv/ui/liveTvScreen.js"] = r"""// Live TV screen.
 //
-// Renders the channel list and the virtualized guide grid. The screen is a
-// thin orchestrator: it owns no playback logic (that is livePlaybackStrategy.js)
-// and no addon logic (that is liveSourceRepository.js).
-//
-// NOTE: the exact ScreenUtils mount contract was not read during design. This
-// module is self-consistent and exports a factory plus a default instance; the
-// Lead Architect must confirm the base contract before wiring the router.
+// Screen contract: mount(params, navigationContext), render(), cleanup(),
+// getRouteStateKey(params), captureRouteState(). DOM host resolved exactly as
+// HomeScreen does it (js/ui/screens/home/homeScreenMethods-20-mount.js:31).
 
 import { Platform } from "../../platform/index.js";
-import { TizenCapabilities } from "../../platform/tizen/tizenCapabilities.js";
+import { ScreenUtils } from "../../ui/navigation/screen.js";
 import { liveTvState } from "../core/liveTvState.js";
 import { assignChannelNumbers, formatChannelNumber } from "../core/liveChannelNumbering.js";
 import { buildGuideRows, computeGuideWindowBounds } from "../core/liveGuideWindow.js";
@@ -1523,12 +1519,31 @@ import { liveTvSettings } from "../liveTvSettings.js";
 import { buildGuideVirtualModel, getGuideVirtualWindow } from "./guideGridVirtualizer.js";
 import { buildGuideTimeTicks, computeGuideNowOffset, computeGuideProgramGeometry } from "./guideGridMetrics.js";
 
+const LIVE_TV_ROUTE = "livetv";
+const LIVE_TV_HOST_ID = "livetv";
+const LIVE_TV_GUIDE_ROW_EXTENT_PX = 96;
+const LIVE_TV_EPG_PREFETCH_LIMIT = 20;
+const BACK_KEY_CODES = new Set([8, 27, 461, 10009]);
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+export function resolveLiveTvHost() {
+  let host = document.getElementById(LIVE_TV_HOST_ID);
+  if (host) {
+    return host;
+  }
+  host = document.createElement("div");
+  host.id = LIVE_TV_HOST_ID;
+  host.className = "screen";
+  const appRoot = document.getElementById("app") || document.body;
+  appRoot.appendChild(host);
+  return host;
 }
 
 export function createLiveTvScreen() {
@@ -1557,7 +1572,7 @@ export function createLiveTvScreen() {
   async function loadEpgForVisible(channels) {
     const list = Array.isArray(channels) ? channels : [];
     await Promise.all(
-      list.map(async (channel) => {
+      list.slice(0, LIVE_TV_EPG_PREFETCH_LIMIT).map(async (channel) => {
         const cached = liveEpgCacheStore.read(channel.id);
         if (cached) {
           liveTvState.setEpg(channel.id, cached.programs, cached.diagnostics);
@@ -1581,8 +1596,9 @@ export function createLiveTvScreen() {
         const number = formatChannelNumber(state.channelNumbers[channel.id]);
         const selected = state.selectedChannelId === channel.id;
         return `
-          <button class="livetv-channel${selected ? " is-selected" : ""}"
+          <button class="livetv-channel focusable${selected ? " is-selected" : ""}"
                   data-channel-id="${escapeHtml(channel.id)}"
+                  data-nav-zone="livetv-channels"
                   type="button">
             <span class="livetv-channel-number">${escapeHtml(number)}</span>
             <span class="livetv-channel-name">${escapeHtml(channel.name)}</span>
@@ -1605,7 +1621,7 @@ export function createLiveTvScreen() {
     const model = buildGuideVirtualModel(
       rows.map((row) => row.channel.id),
       null,
-      96
+      LIVE_TV_GUIDE_ROW_EXTENT_PX
     );
     const window = getGuideVirtualWindow(model, {
       scrollTop,
@@ -1659,20 +1675,39 @@ export function createLiveTvScreen() {
   }
 
   return {
-    route: "livetv",
+    route: LIVE_TV_ROUTE,
 
-    async mount(target, params = {}) {
-      container = target;
+    getRouteStateKey() {
+      return LIVE_TV_ROUTE;
+    },
+
+    captureRouteState() {
+      const state = liveTvState.getState();
+      return {
+        channelId: String(state.selectedChannelId || ""),
+        scrollTop: Number(scrollTop || 0),
+        windowStartMs: Number(state.windowStartMs || 0)
+      };
+    },
+
+    async mount(params = {}, navigationContext = {}) {
+      container = resolveLiveTvHost();
       mounted = true;
+      scrollTop = 0;
+      ScreenUtils.show(container);
+      const restored = navigationContext?.restoredState || null;
+      if (restored && Number.isFinite(Number(restored.scrollTop))) {
+        scrollTop = Number(restored.scrollTop);
+      }
+      const requestedChannelId = String(params?.channelId || restored?.channelId || "");
       const state = liveTvState.getState();
       if (!state.channels.length) {
         await loadChannels();
       }
-      if (params?.channelId) {
-        liveTvState.setSelectedChannel(params.channelId);
+      if (requestedChannelId) {
+        liveTvState.setSelectedChannel(requestedChannelId);
       }
-      const next = liveTvState.getState();
-      await loadEpgForVisible(next.channels.slice(0, 20));
+      await loadEpgForVisible(liveTvState.getState().channels);
       this.render();
     },
 
@@ -1687,32 +1722,40 @@ export function createLiveTvScreen() {
           <main class="livetv-main">${renderGuide(state)}</main>
         </div>
       `;
+      ScreenUtils.indexFocusables(container, ".livetv-channel.focusable");
+      ScreenUtils.setInitialFocus(container, ".livetv-channel.focusable");
     },
 
     handleKey(event) {
-      const normalized = Platform.normalizeKey(event);
-      if (normalized.isBack) {
+      const keyCode = Number(event?.keyCode || 0);
+      if (BACK_KEY_CODES.has(keyCode)) {
         return false;
       }
-      if (normalized.isArrow) {
-        scrollTop = Math.max(0, scrollTop + (normalized.keyCode === 40 ? 96 : -96));
+      if (keyCode === 38 || keyCode === 40) {
+        viewportHeight = Number(container?.querySelector(".livetv-guide-body")?.clientHeight || viewportHeight || 0);
+        scrollTop = Math.max(0, scrollTop + (keyCode === 40 ? LIVE_TV_GUIDE_ROW_EXTENT_PX : -LIVE_TV_GUIDE_ROW_EXTENT_PX));
         this.render();
         return true;
       }
-      return false;
+      return ScreenUtils.handleDpadNavigation(event, container, ".livetv-channel.focusable");
     },
 
     getCapabilities() {
       const capabilities = Platform.getCapabilities();
-      if (Platform.isTizen()) {
-        return { ...capabilities, tizenAvplay: Boolean(TizenCapabilities.isTizen()) };
+      return { ...capabilities, liveTv: true };
+    },
+
+    cleanup() {
+      mounted = false;
+      if (container) {
+        container.innerHTML = "";
+        ScreenUtils.hide(container);
       }
-      return capabilities;
+      container = null;
     },
 
     unmount() {
-      mounted = false;
-      container = null;
+      this.cleanup();
     },
 
     isMounted() {
@@ -1812,6 +1855,42 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         "  getLaunchPayload() {\n"
         '    return getAdapter().getLaunchPayload?.() || { query: "", raw: null };\n'
         "  },\n",
+    ),
+    (
+        "js/ui/components/sidebarNavigationHelpers-01-root-sidebar-items.js",
+        "      '<path d=\"M12 3.2 3.5 10v10.25c0 .69.56 1.25 1.25 1.25h5.5v-6.5h3.5v6.5h5.5c.69 0 1.25-.56 1.25-1.25V10L12 3.2Zm0 1.92 7 5.6v9.53h-4v-6.5H9v6.5H5v-9.53l7-5.6Z\"/>'\n"
+        "  },\n"
+        "  {\n"
+        '    action: "gotoSearch",\n',
+        "      '<path d=\"M12 3.2 3.5 10v10.25c0 .69.56 1.25 1.25 1.25h5.5v-6.5h3.5v6.5h5.5c.69 0 1.25-.56 1.25-1.25V10L12 3.2Zm0 1.92 7 5.6v9.53h-4v-6.5H9v6.5H5v-9.53l7-5.6Z\"/>'\n"
+        "  },\n"
+        "  {\n"
+        '    action: "gotoLiveTv",\n'
+        '    route: "livetv",\n'
+        '    labelKey: "sidebar.livetv",\n'
+        '    label: "Live TV",\n'
+        '    iconType: "svg",\n'
+        '    viewBox: "0 0 24 24",\n'
+        "    iconMarkup:\n"
+        "      '<path d=\"M3.5 4A2.5 2.5 0 0 0 1 6.5v8A2.5 2.5 0 0 0 3.5 17h17a2.5 2.5 0 0 0 2.5-2.5v-8A2.5 2.5 0 0 0 20.5 4h-17Zm0 2h17a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-.5.5h-17a.5.5 0 0 1-.5-.5v-8a.5.5 0 0 1 .5-.5ZM8.5 19a1 1 0 0 1 1-1h5a1 1 0 1 1 0 2h-5a1 1 0 0 1-1-1Z\"/>"
+        "<path d=\"M10.4 7.61a.6.6 0 0 1 .91-.51l3.9 2.4a.6.6 0 0 1 0 1.02l-3.9 2.4a.6.6 0 0 1-.91-.51V7.61Z\"/>'\n"
+        "  },\n"
+        "  {\n"
+        '    action: "gotoSearch",\n',
+    ),
+    (
+        "js/ui/screens/settings/settingsLayoutMarkup.js",
+        "              ${\n                getTvRuntimePerformanceProfile().isTvRuntime\n                  ? this.renderActionRow({\n                      focusKey: \"layout:performanceMode\",\n",
+        "              ${\n                getTvRuntimePerformanceProfile().isTvRuntime\n                  ? renderLiveTvSettingsSection({\n"
+        "                      t,\n"
+        "                      renderToggleRow: this.renderToggleRow.bind(this),\n"
+        "                      renderActionRow: this.renderActionRow.bind(this),\n"
+        "                      renderCollapsibleRow: this.renderCollapsibleRow.bind(this),\n"
+        "                      expanded: { ...(this.expandedSections || {}), liveTv: true }\n"
+        "                    })\n"
+        "                  : \"\"\n"
+        "              }\n"
+        "              ${\n                getTvRuntimePerformanceProfile().isTvRuntime\n                  ? this.renderActionRow({\n                      focusKey: \"layout:performanceMode\",\n",
     ),
 ]
 
