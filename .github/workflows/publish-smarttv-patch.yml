@@ -1,0 +1,49 @@
+name: Publish Smart TV Live TV Patch
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check out pristine pinned base
+        run: |
+          rm -rf /tmp/pristine
+          git clone --quiet https://github.com/NuvioMedia/NuvioTVSmart.git /tmp/pristine
+          cd /tmp/pristine
+          git checkout --quiet 72473523c18a3fb4bef3a0dba8fb8f91548b3baa
+
+      - name: Apply patch to pristine base
+        run: |
+          cd /tmp/pristine
+          git apply --check "$GITHUB_WORKSPACE/patches/livetv-smarttv.patch"
+          git apply "$GITHUB_WORKSPACE/patches/livetv-smarttv.patch"
+
+      - name: Verify generated tree
+        run: |
+          python "$GITHUB_WORKSPACE/.github/livetv-tools/livetv_smarttv.py" --root /tmp/pristine --check
+          test -f /tmp/pristine/js/livetv/playback/livePlaybackStrategy.js
+          test -f /tmp/pristine/js/livetv/ui/guideGridVirtualizer.js
+          grep -q "livetv: liveTvScreen" /tmp/pristine/js/ui/navigation/router.js
+          grep -q "guide: liveTvScreen" /tmp/pristine/js/ui/navigation/router.js
+          grep -q "appcontrol/operation/search" /tmp/pristine/scripts/package-tizen.mjs
+
+      - name: Upload patch artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: livetv-smarttv-patch
+          path: patches/livetv-smarttv.patch

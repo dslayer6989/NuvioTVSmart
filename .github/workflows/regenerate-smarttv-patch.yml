@@ -1,0 +1,82 @@
+name: Regenerate Smart TV Live TV Patch
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - ".github/livetv-tools/**"
+      - "patches/livetv-smarttv.patch"
+
+concurrency:
+  group: livetv-smarttv-patch
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile tools
+        run: |
+          python -m py_compile .github/livetv-tools/livetv_smarttv.py
+          python -m py_compile .github/livetv-tools/inject_tizen_config.py
+          python -m py_compile .github/livetv-tools/inject_webos_manifest.py
+          python -m py_compile .github/livetv-tools/fetch_run_log.py
+
+      - name: Check out pristine pinned base
+        run: |
+          rm -rf /tmp/pristine
+          git clone --quiet https://github.com/NuvioMedia/NuvioTVSmart.git /tmp/pristine
+          cd /tmp/pristine
+          git checkout --quiet 72473523c18a3fb4bef3a0dba8fb8f91548b3baa
+
+      - name: Generate Live TV tree into pristine base
+        run: |
+          python .github/livetv-tools/livetv_smarttv.py --root /tmp/pristine
+          python .github/livetv-tools/inject_tizen_config.py --root /tmp/pristine
+          python .github/livetv-tools/inject_webos_manifest.py --root /tmp/pristine
+
+      - name: Produce cumulative patch
+        run: |
+          mkdir -p patches
+          cd /tmp/pristine
+          git add -A
+          git diff --cached --binary > "$GITHUB_WORKSPACE/patches/livetv-smarttv.patch"
+          wc -l "$GITHUB_WORKSPACE/patches/livetv-smarttv.patch"
+
+      - name: Assert patch content
+        run: |
+          test -s patches/livetv-smarttv.patch
+          grep -q "js/livetv/playback/livePlaybackStrategy.js" patches/livetv-smarttv.patch
+          grep -q "js/livetv/ui/guideGridVirtualizer.js" patches/livetv-smarttv.patch
+          grep -q "appcontrol/operation/search" patches/livetv-smarttv.patch
+          if grep -q "11470\|11471" patches/livetv-smarttv.patch; then
+            echo "::error::patch introduces a forbidden fallback port"
+            exit 1
+          fi
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No patch changes to commit"
+            exit 0
+          fi
+          git commit -m "chore(livetv): regenerate smarttv patch"
+          git push origin HEAD:dev
