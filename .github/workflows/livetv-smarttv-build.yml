@@ -1,0 +1,104 @@
+name: Build Smart TV Live TV Artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (e.g. livetv-smarttv-build-1)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check out pristine pinned base
+        run: |
+          rm -rf /tmp/build
+          git clone --quiet https://github.com/NuvioMedia/NuvioTVSmart.git /tmp/build
+          cd /tmp/build
+          git checkout --quiet 72473523c18a3fb4bef3a0dba8fb8f91548b3baa
+
+      - name: Apply Live TV patch
+        run: |
+          cd /tmp/build
+          git apply "$GITHUB_WORKSPACE/patches/livetv-smarttv.patch"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: /tmp/build/package-lock.json
+
+      - name: Write release local properties
+        env:
+          NUVIO_LOCAL_PROPERTIES: ${{ secrets.NUVIO_LOCAL_PROPERTIES }}
+        run: |
+          LOCAL_PROPERTIES="$NUVIO_LOCAL_PROPERTIES"
+          if [ -z "${LOCAL_PROPERTIES//[[:space:]]/}" ]; then
+            echo "::error::NUVIO_LOCAL_PROPERTIES secret is required to build release artifacts with runtime env."
+            exit 1
+          fi
+          printf '%s\n' "$LOCAL_PROPERTIES" > /tmp/build/local.properties
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: /tmp/build
+
+      - name: Run Live TV logic tests
+        run: node .github/livetv-tools/LiveTvSmartTvTest.mjs
+        working-directory: /tmp/build
+
+      - name: Package unsigned Tizen WGT
+        env:
+          NUVIO_REQUIRE_LOCAL_PROPERTIES: "1"
+          TIZEN_INCLUDE_ENGINEFS_SERVICE: "1"
+        run: npm run package:tizen
+        working-directory: /tmp/build
+
+      - name: Package webOS IPK
+        env:
+          NUVIO_REQUIRE_LOCAL_PROPERTIES: "1"
+        run: npm run package:webos
+        working-directory: /tmp/build
+
+      - name: Normalize artifacts
+        id: artifacts
+        env:
+          TAG_NAME: ${{ inputs.tag }}
+        run: |
+          cd /tmp/build
+          set -- NuvioTV001_*.wgt
+          test -e "$1" || { echo "::error::Tizen WGT missing"; exit 1; }
+          mv "$1" "NuvioTV-Tizen-${TAG_NAME}.wgt"
+          set -- space.nuvio.webos_*_all.ipk
+          test -e "$1" || { echo "::error::webOS IPK missing"; exit 1; }
+          mv "$1" "NuvioTV-webOS-${TAG_NAME}.ipk"
+          echo "wgt=NuvioTV-Tizen-${TAG_NAME}.wgt" >> "$GITHUB_OUTPUT"
+          echo "ipk=NuvioTV-webOS-${TAG_NAME}.ipk" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ inputs.tag }}
+          WGT: ${{ steps.artifacts.outputs.wgt }}
+          IPK: ${{ steps.artifacts.outputs.ipk }}
+        run: |
+          gh release create "$TAG_NAME" \
+            "/tmp/build/$WGT" "/tmp/build/$IPK" \
+            --title "$TAG_NAME" \
+            --notes "Live TV Smart TV build. Unsigned Tizen WGT is intentional: the Nuvio TV Installer signs it locally for the target TV DUID." \
+            --repo "${{ github.repository }}"
