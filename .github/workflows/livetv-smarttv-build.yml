@@ -93,7 +93,7 @@ jobs:
           TIZEN_INCLUDE_ENGINEFS_SERVICE: "1"
           TIZEN_TARGET_MAJOR: "6"
         run: |
-          rm -f ./*.wgt || true
+          rm -f NuvioTV001_*.wgt || true
           npm run package:tizen
           src="$(ls -1 ./*.wgt | head -n1)"
           test -n "$src" || { echo "::error::modern WGT not produced"; ls -la; exit 1; }
@@ -106,9 +106,12 @@ jobs:
         working-directory: /tmp/build
 
       - name: Assert installer file contract (both WGTs)
+        env:
+          MODERN_NAME: NuvioTV-Tizen6-2021plus.wgt
+          LEGACY_NAME: NuvioTV-Tizen5.5Max-2020Legacy.wgt
         run: |
           cd /tmp/build
-          for w in "$LEGACY_NAME" "$MODERN_NAME"; do
+          for w in "NuvioTV-Tizen5.5Max-2020Legacy.wgt" "NuvioTV-Tizen6-2021plus.wgt"; do
             echo "== $w =="
             for f in config.xml main.js services/tizen/enginefs-service.js services/tizen/runtime/media-http.cjs services/tizen/runtime/tx3g-subtitle-parser.cjs services/tizen/runtime/tx3g-subtitle-service.cjs services/tizen/runtime/embedded-text-subtitle-parser.cjs; do
               unzip -l "$w" "$f" >/dev/null || { echo "::error::MISSING $f in $w"; exit 1; }
@@ -139,6 +142,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ inputs.tag }}
+          MODERN_NAME: NuvioTV-Tizen6-2021plus.wgt
+          LEGACY_NAME: NuvioTV-Tizen5.5Max-2020Legacy.wgt
         run: |
           LEGACY_TAG="${TAG_NAME}-legacy"
           cat > /tmp/legacy-notes.md <<'NOTES'
@@ -169,6 +174,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ inputs.tag }}
           IPK: ${{ steps.artifacts.outputs.ipk }}
+          MODERN_NAME: NuvioTV-Tizen6-2021plus.wgt
+          LEGACY_NAME: NuvioTV-Tizen5.5Max-2020Legacy.wgt
         run: |
           cat > /tmp/modern-notes.md <<'NOTES'
           ### Nuvio TV Live TV - Samsung Tizen 6.0 and newer / LG webOS
