@@ -2810,7 +2810,7 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         "js/ui/screens/home/homeScreenMethods-21-load-data.js",
         "      this.rows = this.sortAndFilterRows(nextInitialRows, this.collections);",
         "      this.rows = this.sortAndFilterRows(nextInitialRows, this.collections);\n"
-        "      this.rows = mergeLiveTvHomeRow(this.rows, buildLiveTvHomeRowFromState());",
+        "      this.rows = internals.mergeLiveTvHomeRow(this.rows, internals.buildLiveTvHomeRowFromState());",
     ),
     (
         "js/ui/screens/settings/settingsLayoutActions.js",
