@@ -2809,10 +2809,7 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         "js/ui/screens/home/homeScreenMethods-21-load-data.js",
         "      this.rows = this.sortAndFilterRows(nextInitialRows, this.collections);",
         "      this.rows = this.sortAndFilterRows(nextInitialRows, this.collections);\n"
-        "      this.rows = this.sortAndFilterRows(\n"
-        "        mergeLiveTvHomeRow(this.rows, buildLiveTvHomeRowFromState()),\n"
-        "        this.collections\n"
-        "      );",
+        "      this.rows = mergeLiveTvHomeRow(this.rows, buildLiveTvHomeRowFromState());",
     ),
     (
         "js/ui/screens/settings/settingsLayoutActions.js",
@@ -2861,7 +2858,64 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         "      liveRecentsStore.clear();\n"
         "    });\n"
         "\n"
+        '    this.actionMap.set("livetv:theme", () => {\n'
+        "      this.openOptionDialog({\n"
+        '        title: t("livetv.settings.theme.title", {}, "App theme"),\n'
+        "        options: APP_THEMES.map((theme) => ({ id: theme.id, label: theme.label })),\n"
+        "        selectedId: getAppTheme(),\n"
+        '        returnFocusKey: "livetv:theme",\n'
+        "        onSelect: (option) => {\n"
+        "          setAppTheme(option.id);\n"
+        "        }\n"
+        "      });\n"
+        "    });\n"
+        "\n"
         '  this.actionMap.set("layout:toggle:homeLayout", () => {',
+    ),
+    (
+        "js/ui/screens/settings/settingsLayoutActions.js",
+        'import { getTvPerformanceMode, setTvPerformanceMode } from "../../../platform/tvRuntimePerformance.js";\n',
+        'import { getTvPerformanceMode, setTvPerformanceMode } from "../../../platform/tvRuntimePerformance.js";\n'
+        'import { liveTvSettings } from "../../../livetv/liveTvSettings.js";\n'
+        'import { STREMIO_TV_ADDON_BASE_URL } from "../../../livetv/data/liveSourceRepository.js";\n'
+        'import { APP_THEMES, getAppTheme, setAppTheme } from "../../../livetv/ui/liveTvTheme.js";\n'
+        'import { liveTvState } from "../../../livetv/core/liveTvState.js";\n'
+        'import { liveFavoritesStore } from "../../../livetv/data/liveFavoritesStore.js";\n'
+        'import { liveRecentsStore } from "../../../livetv/data/liveRecentsStore.js";\n',
+    ),
+    (
+        "js/ui/screens/home/homeContinueWatchingLoad.js",
+        "        this.continueWatchingLoading = true;\n"
+        "        if (!previousLoadingState) {\n"
+        "          this.requestBackgroundRender();\n"
+        "        }\n"
+        "        return;\n"
+        "      }",
+        "        this.continueWatchingLoading = true;\n"
+        "        if (!previousLoadingState) {\n"
+        "          this.requestBackgroundRender();\n"
+        "        }\n"
+        "        const syncWaitToken = token;\n"
+        "        const syncWaitGeneration = refreshGeneration;\n"
+        "        if (this.continueWatchingSyncWatchdog) {\n"
+        "          clearTimeout(this.continueWatchingSyncWatchdog);\n"
+        "        }\n"
+        "        this.continueWatchingSyncWatchdog = setTimeout(() => {\n"
+        "          this.continueWatchingSyncWatchdog = null;\n"
+        "          if (\n"
+        "            syncWaitToken !== this.homeLoadToken ||\n"
+        "            (syncWaitGeneration != null && syncWaitGeneration !== this.homeContinueWatchingSyncRefreshGeneration) ||\n"
+        '            Router.getCurrent() !== "home"\n'
+        "          ) {\n"
+        "            return;\n"
+        "          }\n"
+        "          this.continueWatchingInitialResolved = true;\n"
+        "          this.continueWatchingLoading = false;\n"
+        "          this.requestBackgroundRender();\n"
+        "          this.maybeStartPendingHomeBackgroundRefresh();\n"
+        "        }, 8000);\n"
+        "        return;\n"
+        "      }",
     ),
     (
         "index.html",
