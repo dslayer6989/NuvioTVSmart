@@ -2046,6 +2046,442 @@ export function createLiveTvScreen() {
 export const liveTvScreen = createLiveTvScreen();
 """
 
+FILES["css/themes.css"] = r"""/* App-wide theme tokens.
+   The default theme is :root in css/base.css — no block here.
+   Every other stylesheet consumes these properties, so setting
+   <html data-theme="..."> re-themes the whole app without a reload. */
+
+html[data-theme="neon"] {
+  --nuvio-bg: #07060D;
+  --nuvio-surface: #0F0C1A;
+  --nuvio-surface-raised: #171329;
+  --nuvio-panel: rgba(18, 15, 34, 0.8);
+  --nuvio-grid-line: #231E3A;
+  --nuvio-grid-line-strong: #342C57;
+  --nuvio-accent: #00E5FF;
+  --nuvio-accent-soft: #5CF2FF;
+  --nuvio-highlight: #FF2BD6;
+  --nuvio-accent-deep: #7C4DFF;
+  --nuvio-live: #FF3B6B;
+  --nuvio-on-accent: #05040A;
+  --nuvio-text-primary: #F4F2FF;
+  --nuvio-text-secondary: #B9B3D9;
+  --nuvio-text-muted: #7D7699;
+  --nuvio-past-cell: #0D0B17;
+  --nuvio-future-cell: #15122A;
+  --nuvio-airing-cell: #1B1840;
+  --nuvio-accent-gradient: linear-gradient(90deg, #7C4DFF, #00E5FF, #FF2BD6);
+  --nuvio-airing-gradient: linear-gradient(180deg, #1E2A55, #2A1745);
+  --nuvio-screen-gradient: linear-gradient(180deg, #0B0917, #07060D, #05040A);
+  --nuvio-now-gradient: linear-gradient(180deg, #00E5FF, #FF2BD6);
+  --nuvio-progress-gradient: linear-gradient(90deg, #00E5FF, #FF2BD6);
+  --nuvio-logo-tile: linear-gradient(180deg, #1B1733, #100D1E);
+  --nuvio-corner-scale: 1;
+  --nuvio-glow: 1;
+  --nuvio-heading-font: "Inter", "Segoe UI", Arial, sans-serif;
+
+  --bg-color: #07060D;
+  --bg-color-rgb: 7 6 13;
+  --bg-elevated: #0F0C1A;
+  --bg-elevated-rgb: 15 12 26;
+  --card-bg: #171329;
+  --card-bg-rgb: 23 19 41;
+  --secondary-color: #00E5FF;
+  --secondary-color-rgb: 0 229 255;
+  --text-color: #F4F2FF;
+  --text-secondary: #B9B3D9;
+  --text-tertiary: #7D7699;
+  --border-color: #231E3A;
+  --focus-color: #00E5FF;
+  --focus-color-rgb: 0 229 255;
+  --focus-bg: #171329;
+  --error-color: #FF3B6B;
+}
+
+html[data-theme="retrocable"] {
+  --nuvio-bg: #06123F;
+  --nuvio-surface: #0E2266;
+  --nuvio-surface-raised: #16307F;
+  --nuvio-panel: rgba(11, 27, 85, 0.9);
+  --nuvio-grid-line: #2A4596;
+  --nuvio-grid-line-strong: #4262B8;
+  --nuvio-accent: #FFD83D;
+  --nuvio-accent-soft: #FFE680;
+  --nuvio-highlight: #7FD4FF;
+  --nuvio-accent-deep: #FF9F1C;
+  --nuvio-live: #FF4D4D;
+  --nuvio-on-accent: #0A1440;
+  --nuvio-text-primary: #F4F7FF;
+  --nuvio-text-secondary: #C3D0F2;
+  --nuvio-text-muted: #8A9BD0;
+  --nuvio-past-cell: #0A1A52;
+  --nuvio-future-cell: #12297A;
+  --nuvio-airing-cell: #2446B4;
+  --nuvio-accent-gradient: linear-gradient(90deg, #FF9F1C, #FFD83D, #7FD4FF);
+  --nuvio-airing-gradient: linear-gradient(180deg, #2446B4, #16307F);
+  --nuvio-screen-gradient: linear-gradient(180deg, #0E2266, #06123F, #040C2B);
+  --nuvio-now-gradient: linear-gradient(180deg, #FFD83D, #FF9F1C);
+  --nuvio-progress-gradient: linear-gradient(90deg, #FFD83D, #7FD4FF);
+  --nuvio-logo-tile: linear-gradient(180deg, #16307F, #0E2266);
+  --nuvio-corner-scale: 0.15;
+  --nuvio-glow: 0;
+  --nuvio-heading-font: "DM Sans", "Inter", Arial, sans-serif;
+
+  --bg-color: #06123F;
+  --bg-color-rgb: 6 18 63;
+  --bg-elevated: #0E2266;
+  --bg-elevated-rgb: 14 34 102;
+  --card-bg: #16307F;
+  --card-bg-rgb: 22 48 127;
+  --secondary-color: #FFD83D;
+  --secondary-color-rgb: 255 216 61;
+  --text-color: #F4F7FF;
+  --text-secondary: #C3D0F2;
+  --text-tertiary: #8A9BD0;
+  --border-color: #2A4596;
+  --focus-color: #FFD83D;
+  --focus-color-rgb: 255 216 61;
+  --focus-bg: #16307F;
+  --error-color: #FF4D4D;
+}
+
+html[data-theme="teletext"] {
+  --nuvio-bg: #000000;
+  --nuvio-surface: #000000;
+  --nuvio-surface-raised: #0000AA;
+  --nuvio-panel: rgba(0, 0, 0, 0.94);
+  --nuvio-grid-line: #2E2E2E;
+  --nuvio-grid-line-strong: #5A5A5A;
+  --nuvio-accent: #FFFF00;
+  --nuvio-accent-soft: #00FFFF;
+  --nuvio-highlight: #FF00FF;
+  --nuvio-accent-deep: #FF0000;
+  --nuvio-live: #FF0000;
+  --nuvio-on-accent: #000000;
+  --nuvio-text-primary: #FFFFFF;
+  --nuvio-text-secondary: #00FFFF;
+  --nuvio-text-muted: #B0B0B0;
+  --nuvio-past-cell: #0A0A0A;
+  --nuvio-future-cell: #141414;
+  --nuvio-airing-cell: #0000AA;
+  --nuvio-accent-gradient: linear-gradient(90deg, #FFFF00, #00FFFF);
+  --nuvio-airing-gradient: linear-gradient(180deg, #0000AA, #000066);
+  --nuvio-screen-gradient: linear-gradient(180deg, #000000, #000000, #000000);
+  --nuvio-now-gradient: linear-gradient(180deg, #00FFFF, #FFFF00);
+  --nuvio-progress-gradient: linear-gradient(90deg, #00FF00, #FFFF00);
+  --nuvio-logo-tile: linear-gradient(180deg, #0000AA, #000000);
+  --nuvio-corner-scale: 0;
+  --nuvio-glow: 0;
+  --nuvio-heading-font: "Open Sans", "Inter", Arial, sans-serif;
+
+  --bg-color: #000000;
+  --bg-color-rgb: 0 0 0;
+  --bg-elevated: #000000;
+  --bg-elevated-rgb: 0 0 0;
+  --card-bg: #0000AA;
+  --card-bg-rgb: 0 0 170;
+  --secondary-color: #FFFF00;
+  --secondary-color-rgb: 255 255 0;
+  --text-color: #FFFFFF;
+  --text-secondary: #00FFFF;
+  --text-tertiary: #B0B0B0;
+  --border-color: #2E2E2E;
+  --focus-color: #FFFF00;
+  --focus-color-rgb: 255 255 0;
+  --focus-bg: #0000AA;
+  --error-color: #FF0000;
+}
+"""
+
+FILES["css/livetv.css"] = r"""/* Live TV unified guide grid — Smart TV (Tizen / webOS).
+   Every colour is a css/themes.css custom property, so the three themes
+   re-skin this file with no additional selectors. */
+
+.livetv-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--nuvio-screen-gradient, var(--nuvio-bg));
+  color: var(--nuvio-text-primary);
+  font-family: var(--app-font-family);
+}
+
+.livetv-guide { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+.livetv-guide-scroll { position: relative; flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; }
+.livetv-guide-inner { display: flex; flex-direction: column; height: 100%; min-width: 100%; }
+
+.livetv-guide-header {
+  position: relative;
+  flex: 0 0 56px;
+  height: 56px;
+  background: var(--nuvio-surface);
+  border-bottom: 1px solid var(--nuvio-grid-line-strong);
+  z-index: 5;
+}
+.livetv-guide-header-day {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  width: 300px;
+  min-width: 300px;
+  height: 100%;
+  padding-left: 14px;
+  box-sizing: border-box;
+  background: var(--nuvio-surface);
+  border-right: 1px solid var(--nuvio-grid-line-strong);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--nuvio-text-secondary);
+}
+.livetv-guide-tick {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding-left: 10px;
+  box-sizing: border-box;
+  border-left: 1px solid var(--nuvio-grid-line);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nuvio-text-muted);
+}
+
+.livetv-guide-body { position: relative; flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; }
+.livetv-guide-spacer { width: 100%; }
+
+.livetv-guide-row {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 96px;
+  background: transparent;
+  border-bottom: 1px solid var(--nuvio-grid-line);
+}
+.livetv-guide-row.is-focused { background: var(--nuvio-surface-raised); }
+
+.livetv-guide-channel {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 300px;
+  min-width: 300px;
+  height: 100%;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border: 0;
+  border-right: 1px solid var(--nuvio-grid-line-strong);
+  border-left: 3px solid transparent;
+  background: var(--nuvio-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.livetv-guide-channel.is-highlighted { border-left-color: var(--nuvio-accent); }
+.livetv-guide-channel.focused,
+.livetv-guide-channel:focus { border-left-color: var(--nuvio-accent); background: var(--nuvio-surface-raised); }
+.livetv-guide-channel-number { width: 22px; font-size: 12px; font-weight: 700; color: var(--nuvio-text-muted); }
+.livetv-guide-channel-logo {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: var(--nuvio-logo-tile);
+}
+.livetv-guide-channel-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nuvio-text-primary);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.livetv-guide-channel-star { width: 20px; font-size: 20px; line-height: 1; color: var(--nuvio-text-muted); }
+.livetv-guide-channel-star.is-favorite { color: var(--nuvio-accent); }
+
+.livetv-guide-programs { position: relative; flex: 1 1 auto; height: 100%; }
+
+.livetv-guide-program {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow: visible;
+  border-radius: 10px;
+}
+.livetv-guide-program-fill {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 10px;
+  background: var(--nuvio-future-cell);
+  border: 1px solid var(--nuvio-grid-line);
+  overflow: hidden;
+}
+.livetv-guide-program.is-past .livetv-guide-program-fill { background: var(--nuvio-past-cell); }
+.livetv-guide-program.is-airing .livetv-guide-program-fill {
+  background: var(--nuvio-airing-gradient);
+  border-color: var(--nuvio-accent-soft);
+}
+.livetv-guide-program.is-airing .livetv-guide-program-fill::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--nuvio-now-gradient);
+}
+.livetv-guide-program.focused .livetv-guide-program-fill,
+.livetv-guide-program:focus .livetv-guide-program-fill {
+  border: 3px solid var(--nuvio-accent);
+  box-shadow: 0 0 0 3px var(--nuvio-highlight);
+}
+.livetv-guide-program-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--nuvio-progress-gradient);
+}
+.livetv-guide-program-title {
+  position: sticky;
+  left: 300px;
+  z-index: 2;
+  display: block;
+  max-width: 100%;
+  padding: 6px 8px 0 9px;
+  box-sizing: border-box;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nuvio-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.livetv-guide-program.is-airing .livetv-guide-program-title { font-weight: 700; padding-left: 11px; }
+.livetv-guide-program-time {
+  position: sticky;
+  left: 300px;
+  z-index: 2;
+  display: block;
+  max-width: 100%;
+  padding: 0 8px 0 9px;
+  box-sizing: border-box;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--nuvio-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+}
+.livetv-guide-empty {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: var(--nuvio-text-muted);
+}
+
+.livetv-guide-now {
+  position: absolute;
+  top: 0;
+  width: 12px;
+  z-index: 4;
+  pointer-events: none;
+}
+.livetv-guide-now::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 2px;
+  background: var(--nuvio-now-gradient);
+}
+.livetv-guide-now::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nuvio-accent);
+}
+
+.livetv-sidebar { display: none; }
+.livetv-main { display: flex; flex: 1 1 auto; min-width: 0; }
+.livetv-channel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-left: 3px solid transparent;
+  background: transparent;
+  color: var(--nuvio-text-primary);
+  font: inherit;
+  text-align: left;
+}
+.livetv-channel.is-selected { border-left-color: var(--nuvio-accent); background: var(--nuvio-surface-raised); }
+.livetv-channel-number { width: 22px; font-size: 12px; font-weight: 700; color: var(--nuvio-text-muted); }
+.livetv-channel-name { flex: 1 1 auto; font-size: 14px; font-weight: 600; }
+.livetv-setup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  width: 100%;
+  height: 100%;
+  padding: 0 80px;
+  box-sizing: border-box;
+  text-align: center;
+  background: var(--nuvio-screen-gradient, var(--nuvio-bg));
+}
+.livetv-setup-title { margin: 0; font-size: 32px; font-weight: 900; letter-spacing: 2px; color: var(--nuvio-text-primary); }
+.livetv-setup-body { margin: 0; max-width: 900px; font-size: 18px; color: var(--nuvio-text-secondary); }
+.livetv-setup-action {
+  min-height: 60px;
+  padding: 0 28px;
+  border: 3px solid transparent;
+  border-radius: 10px;
+  background: var(--nuvio-surface-raised);
+  color: var(--nuvio-text-primary);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 700;
+}
+.livetv-setup-action.focused,
+.livetv-setup-action:focus { border-color: var(--nuvio-accent); }
+"""
+
 # --- Surgical edits -------------------------------------------------------
 # Each entry is (relative path, anchor, replacement). The anchor MUST appear
 # exactly once or the run aborts.
@@ -2254,6 +2690,12 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         "    });\n"
         "\n"
         '  this.actionMap.set("layout:toggle:homeLayout", () => {',
+    ),
+    (
+        "index.html",
+        '    <link rel="stylesheet" href="css/themes.css?v=20260509s" />\n',
+        '    <link rel="stylesheet" href="css/themes.css?v=20260509s" />\n'
+        '    <link rel="stylesheet" href="css/livetv.css?v=20260701d" />\n',
     ),
 ]
 
