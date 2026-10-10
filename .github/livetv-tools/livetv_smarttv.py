@@ -2046,6 +2046,76 @@ export function createLiveTvScreen() {
 export const liveTvScreen = createLiveTvScreen();
 """
 
+FILES["js/livetv/ui/liveTvTheme.js"] = r"""// App-wide theme controller.
+//
+// The three themes are pure CSS custom-property blocks in css/themes.css,
+// selected by a data-theme attribute on <html>. This module is the only
+// writer of that attribute, so the whole app re-skins without a reload.
+
+import { createProfileScopedStore } from "../../data/local/profileScopedStore.js";
+
+const APP_THEME_KEY = "appThemeV1";
+const DEFAULT_THEME_ID = "default";
+
+export const APP_THEMES = Object.freeze([
+  { id: "default", label: "Nuvio Dark" },
+  { id: "neon", label: "Neon" },
+  { id: "retrocable", label: "Retro Cable" },
+  { id: "teletext", label: "Teletext" }
+]);
+
+function normalizeTheme(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const id = String(source.id || DEFAULT_THEME_ID).trim();
+  return { id: APP_THEMES.some((theme) => theme.id === id) ? id : DEFAULT_THEME_ID };
+}
+
+const store = createProfileScopedStore({
+  key: APP_THEME_KEY,
+  normalize: normalizeTheme
+});
+
+export function getAppTheme() {
+  return store.get().id;
+}
+
+export function appThemeLabel() {
+  const id = getAppTheme();
+  return APP_THEMES.find((theme) => theme.id === id)?.label || id;
+}
+
+export function applyAppTheme(id = getAppTheme()) {
+  if (typeof document === "undefined" || !document.documentElement) {
+    return id;
+  }
+  const resolved = APP_THEMES.some((theme) => theme.id === id) ? id : DEFAULT_THEME_ID;
+  if (resolved === DEFAULT_THEME_ID) {
+    document.documentElement.removeAttribute("data-theme");
+  } else {
+    document.documentElement.setAttribute("data-theme", resolved);
+  }
+  return resolved;
+}
+
+export function setAppTheme(id) {
+  const resolved = applyAppTheme(id);
+  store.set({ id: resolved });
+  return resolved;
+}
+
+export function cycleAppTheme() {
+  const current = getAppTheme();
+  const index = APP_THEMES.findIndex((theme) => theme.id === current);
+  const next = APP_THEMES[(index + 1) % APP_THEMES.length];
+  return setAppTheme(next.id);
+}
+
+// Apply the persisted theme as soon as this module is first imported.
+applyAppTheme();
+
+export { APP_THEME_KEY, DEFAULT_THEME_ID };
+"""
+
 FILES["css/themes.css"] = r"""/* App-wide theme tokens.
    The default theme is :root in css/base.css — no block here.
    Every other stylesheet consumes these properties, so setting
