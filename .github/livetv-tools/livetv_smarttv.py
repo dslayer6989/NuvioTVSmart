@@ -1311,7 +1311,7 @@ FILES["js/livetv/ui/guideGridMetrics.js"] = r"""// Guide grid geometry helpers. 
 import { GUIDE_DEFAULT_PIXELS_PER_MINUTE } from "./guideGridVirtualizer.js";
 
 export const GUIDE_ROW_HEIGHT_PX = 96;
-export const GUIDE_CHANNEL_COLUMN_WIDTH_PX = 320;
+export const GUIDE_CHANNEL_COLUMN_WIDTH_PX = 300;
 export const GUIDE_MIN_PROGRAM_WIDTH_PX = 48;
 
 function finitePositive(value, fallback) {
