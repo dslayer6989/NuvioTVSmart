@@ -1785,6 +1785,7 @@ const LIVE_TV_CHANNEL_COLUMN_PX = GUIDE_CHANNEL_COLUMN_WIDTH_PX;
 const BACK_KEY_CODES = new Set([8, 27, 461, 10009]);
 const PROGRAM_FOCUS_SELECTOR = ".livetv-guide-program.focusable";
 const CHANNEL_FOCUS_SELECTOR = ".livetv-guide-channel.focusable";
+const FOCUS_SELECTOR = ":is(.livetv-guide-program, .livetv-guide-channel).focusable";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -2094,7 +2095,7 @@ export function createLiveTvScreen() {
       }
       const state = liveTvState.getState();
       container.innerHTML = `<div class="livetv-shell">${renderGuide(state)}</div>`;
-      ScreenUtils.indexFocusables(container, `${PROGRAM_FOCUS_SELECTOR}, ${CHANNEL_FOCUS_SELECTOR}`);
+      ScreenUtils.indexFocusables(container, FOCUS_SELECTOR);
       restoreFocus();
       syncViewport();
     },
@@ -2118,7 +2119,7 @@ export function createLiveTvScreen() {
         focusChannelId = String(focusedNode.dataset.channelId || focusChannelId);
         focusProgramIndex = Number(focusedNode.dataset.programIndex || 0);
       }
-      return ScreenUtils.handleDpadNavigation(event, container, `${PROGRAM_FOCUS_SELECTOR}, ${CHANNEL_FOCUS_SELECTOR}`);
+      return ScreenUtils.handleDpadNavigation(event, container, FOCUS_SELECTOR);
     },
 
     getCapabilities() {
