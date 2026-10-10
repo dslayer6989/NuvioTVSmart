@@ -1592,6 +1592,7 @@ FILES["js/livetv/liveTvSettings.js"] = r"""// Live TV settings model + markup.
 import { createProfileScopedStore } from "../data/local/profileScopedStore.js";
 import { LIVE_TV_CATALOGS, STREMIO_TV_ADDON_BASE_URL } from "./data/liveSourceRepository.js";
 import { liveTvState } from "./core/liveTvState.js";
+import { appThemeLabel } from "./ui/liveTvTheme.js";
 
 const LIVE_TV_SETTINGS_KEY = "liveTvSettingsV1";
 
@@ -1604,7 +1605,7 @@ function normalizeSettings(value) {
     catalogId: String(source.catalogId || "channels").trim() || "channels",
     showHomeRow: source.showHomeRow !== false,
     guideWindowMinutes: Math.max(30, Math.trunc(Number(source.guideWindowMinutes) || 180)),
-    pixelsPerMinute: Math.max(2, Math.trunc(Number(source.pixelsPerMinute) || 6)),
+    pixelsPerMinute: Math.max(2, Number(source.pixelsPerMinute) || 260 / 30),
     channelNumbers: source.channelNumbers && typeof source.channelNumbers === "object" ? source.channelNumbers : {}
   };
 }
@@ -1650,6 +1651,16 @@ export function renderLiveTvSettingsSection(ctx = {}) {
               subtitle: t("livetv.settings.enabled.subtitle", {}, "Show Live TV in the sidebar and on Home."),
               checked: settings.enabled
             })}
+            ${
+              typeof renderActionRow === "function"
+                ? renderActionRow({
+                    focusKey: "livetv:theme",
+                    title: t("livetv.settings.theme.title", {}, "App theme"),
+                    subtitle: t("livetv.settings.theme.subtitle", {}, "Applies to the whole app."),
+                    value: appThemeLabel()
+                  })
+                : ""
+            }
             ${renderToggleRow({
               focusKey: "livetv:homeRow",
               title: t("livetv.settings.homeRow.title", {}, "Live TV row on Home"),
