@@ -1599,7 +1599,7 @@ function normalizeSettings(value) {
   const source = value && typeof value === "object" ? value : {};
   return {
     enabled: source.enabled !== false,
-    addonConfigured: source.addonConfigured === true,
+    addonConfigured: source.addonConfigured !== false,
     addonBaseUrl: String(source.addonBaseUrl || STREMIO_TV_ADDON_BASE_URL).trim(),
     catalogId: String(source.catalogId || "channels").trim() || "channels",
     showHomeRow: source.showHomeRow !== false,
@@ -1969,7 +1969,7 @@ export function createLiveTvScreen() {
       mounted = true;
       scrollTop = 0;
       ScreenUtils.show(container);
-      if (liveTvSettings.get().addonConfigured !== true) {
+      if (liveTvSettings.get().addonConfigured === false && liveTvSettings.get().forceSetupPrompt === true) {
         this.renderSetupPrompt();
         return;
       }
@@ -2218,12 +2218,12 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         "      this.openTextDialog({\n"
         '        title: "Live TV settings",\n'
         '        placeholder: "https://…/manifest.json",\n'
-        "        value: current.addonConfigured ? current.addonBaseUrl : \"\",\n"
+        '        value: current.addonConfigured ? current.addonBaseUrl : "",\n'
         "        onSubmit: (value) => {\n"
-        "          const normalized = String(value || \"\")\n"
+        '          const normalized = String(value || "")\n'
         "            .trim()\n"
-        "            .replace(/\\/manifest\\.json$/i, \"\")\n"
-        "            .replace(/\\/+$/, \"\");\n"
+        '            .replace(/\\/manifest\\.json$/i, "")\n'
+        '            .replace(/\\/+$/, "");\n'
         "          if (!normalized) {\n"
         "            return false;\n"
         "          }\n"
