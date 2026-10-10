@@ -1745,11 +1745,16 @@ export function renderLiveTvSettingsSection(ctx = {}) {
 export { LIVE_TV_SETTINGS_KEY };
 """
 
-FILES["js/livetv/ui/liveTvScreen.js"] = r"""// Live TV screen.
+FILES["js/livetv/ui/liveTvScreen.js"] = r"""// Live TV screen — unified guide grid.
 //
 // Screen contract: mount(params, navigationContext), render(), cleanup(),
-// getRouteStateKey(params), captureRouteState(). DOM host resolved exactly as
-// HomeScreen does it (js/ui/screens/home/homeScreenMethods-20-mount.js:31).
+// getRouteStateKey(params), captureRouteState(), handleKey(event),
+// getCapabilities(), unmount(), isMounted().
+//
+// Layout mirrors the desktop guide: ONE horizontal scroller holds a sticky
+// time header and a vertically virtualized row list; each row is
+// [sticky channel cell][programme lane]; programme cells are absolutely
+// positioned inside the lane; a single now-marker spans the row list.
 
 import { Platform } from "../../platform/index.js";
 import { ScreenUtils } from "../../ui/navigation/screen.js";
@@ -1762,14 +1767,24 @@ import { liveEpgCacheStore } from "../data/liveEpgCacheStore.js";
 import { liveFavoritesStore } from "../data/liveFavoritesStore.js";
 import { liveRecentsStore } from "../data/liveRecentsStore.js";
 import { liveTvSettings } from "../liveTvSettings.js";
+import { applyAppTheme } from "./liveTvTheme.js";
 import { buildGuideVirtualModel, getGuideVirtualWindow } from "./guideGridVirtualizer.js";
-import { buildGuideTimeTicks, computeGuideNowOffset, computeGuideProgramGeometry } from "./guideGridMetrics.js";
+import {
+  buildGuideTimeTicks,
+  computeGuideNowOffset,
+  computeGuideProgramGeometry,
+  GUIDE_CHANNEL_COLUMN_WIDTH_PX,
+  GUIDE_ROW_HEIGHT_PX
+} from "./guideGridMetrics.js";
 
 const LIVE_TV_ROUTE = "livetv";
 const LIVE_TV_HOST_ID = "livetv";
-const LIVE_TV_GUIDE_ROW_EXTENT_PX = 96;
 const LIVE_TV_EPG_PREFETCH_LIMIT = 20;
+const LIVE_TV_ROW_EXTENT_PX = GUIDE_ROW_HEIGHT_PX;
+const LIVE_TV_CHANNEL_COLUMN_PX = GUIDE_CHANNEL_COLUMN_WIDTH_PX;
 const BACK_KEY_CODES = new Set([8, 27, 461, 10009]);
+const PROGRAM_FOCUS_SELECTOR = ".livetv-guide-program.focusable";
+const CHANNEL_FOCUS_SELECTOR = ".livetv-guide-channel.focusable";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -1777,6 +1792,16 @@ function escapeHtml(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function formatClock(epochMs) {
+  try {
+    return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(
+      new Date(Number(epochMs))
+    );
+  } catch (_) {
+    return "";
+  }
 }
 
 export function resolveLiveTvHost() {
@@ -1797,6 +1822,8 @@ export function createLiveTvScreen() {
   let container = null;
   let scrollTop = 0;
   let viewportHeight = 0;
+  let focusChannelId = "";
+  let focusProgramIndex = 0;
 
   const settings = liveTvSettings.get();
 
@@ -1836,32 +1863,85 @@ export function createLiveTvScreen() {
     );
   }
 
-  function renderChannelList(state) {
-    return state.channels
-      .map((channel) => {
-        const number = formatChannelNumber(state.channelNumbers[channel.id]);
-        const selected = state.selectedChannelId === channel.id;
-        const favorite = liveFavoritesStore.has(channel.id);
-        return `
-          <div class="livetv-channel-row">
-            <button class="livetv-channel focusable${selected ? " is-selected" : ""}"
-                    data-channel-id="${escapeHtml(channel.id)}"
-                    data-nav-zone="livetv-channels"
-                    type="button">
-              <span class="livetv-channel-number">${escapeHtml(number)}</span>
-              <span class="livetv-channel-name">${escapeHtml(channel.name)}</span>
-            </button>
-            <button class="livetv-favorite focusable"
-                    data-favorite-channel-id="${escapeHtml(channel.id)}"
-                    data-nav-zone="livetv-channels"
-                    type="button"
-                    aria-label="${favorite ? "Remove from favorites" : "Add to favorites"}">
-              ${favorite ? "★" : "☆"}
-            </button>
-          </div>
-        `;
-      })
-      .join("");
+  function renderTimeHeader(bounds, ticks) {
+    const dayLabel = formatClock(bounds.startMs);
+    return `
+      <div class="livetv-guide-header">
+        <div class="livetv-guide-header-day">${escapeHtml(dayLabel)}</div>
+        ${ticks
+          .map((tick) => {
+            const left = ((tick.atMs - bounds.startMs) / 60000) * settings.pixelsPerMinute;
+            return `<div class="livetv-guide-tick" style="left:${Math.round(left)}px">${escapeHtml(tick.label)}</div>`;
+          })
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderChannelCell(row, state) {
+    const channel = row.channel;
+    const number = formatChannelNumber(state.channelNumbers[channel.id]);
+    const favorite = liveFavoritesStore.has(channel.id);
+    const highlighted = state.selectedChannelId === channel.id;
+    const logo = channel.poster
+      ? `<img class="livetv-guide-channel-logo" src="${escapeHtml(channel.poster)}" alt="" />`
+      : `<span class="livetv-guide-channel-logo"></span>`;
+    return `
+      <button class="livetv-guide-channel focusable${highlighted ? " is-highlighted" : ""}"
+              type="button"
+              data-channel-id="${escapeHtml(channel.id)}"
+              data-nav-zone="livetv-channels">
+        <span class="livetv-guide-channel-number">${escapeHtml(number)}</span>
+        ${logo}
+        <span class="livetv-guide-channel-name">${escapeHtml(channel.name)}</span>
+        <span class="livetv-guide-channel-star${favorite ? " is-favorite" : ""}">${favorite ? "\u2605" : "\u2606"}</span>
+      </button>
+    `;
+  }
+
+  function renderProgramCell(program, row, bounds, index) {
+    const geometry = computeGuideProgramGeometry(program, bounds.startMs, settings.pixelsPerMinute);
+    if (!geometry.visible) {
+      return "";
+    }
+    const nowMs = Date.now();
+    const airing = program.start <= nowMs && program.end > nowMs;
+    const past = program.end <= nowMs;
+    const stateClass = airing ? " is-airing" : past ? " is-past" : "";
+    const progress = airing
+      ? Math.max(0, Math.min(1, (nowMs - program.start) / Math.max(1, program.end - program.start)))
+      : 0;
+    return `
+      <button class="livetv-guide-program focusable${stateClass}"
+              type="button"
+              style="left:${Math.round(geometry.left)}px;width:${Math.round(geometry.width)}px"
+              data-channel-id="${escapeHtml(row.channel.id)}"
+              data-program-index="${index}"
+              data-program-id="${escapeHtml(program.id)}"
+              data-nav-zone="livetv-programs">
+        <span class="livetv-guide-program-fill">
+          ${airing ? `<span class="livetv-guide-program-progress" style="width:${Math.round(progress * 100)}%"></span>` : ""}
+        </span>
+        <span class="livetv-guide-program-title">${escapeHtml(program.title)}</span>
+        <span class="livetv-guide-program-time">${escapeHtml(formatClock(program.start))}</span>
+      </button>
+    `;
+  }
+
+  function renderRow(row, bounds, state) {
+    const focused = state.selectedChannelId === row.channel.id;
+    return `
+      <div class="livetv-guide-row${focused ? " is-focused" : ""}" data-channel-id="${escapeHtml(row.channel.id)}">
+        ${renderChannelCell(row, state)}
+        <div class="livetv-guide-programs">
+          ${
+            row.hasEpg
+              ? row.programs.map((program, index) => renderProgramCell(program, row, bounds, index)).join("")
+              : `<span class="livetv-guide-empty">No guide data</span>`
+          }
+        </div>
+      </div>
+    `;
   }
 
   function renderGuide(state) {
@@ -1874,15 +1954,19 @@ export function createLiveTvScreen() {
       endMs: bounds.endMs,
       nowMs: Date.now()
     });
+    if (!rows.length) {
+      return `<div class="livetv-guide"><div class="livetv-guide-empty">No channels</div></div>`;
+    }
     const model = buildGuideVirtualModel(
       rows.map((row) => row.channel.id),
       null,
-      LIVE_TV_GUIDE_ROW_EXTENT_PX
+      LIVE_TV_ROW_EXTENT_PX
     );
+    const preferredIndex = rows.findIndex((row) => row.channel.id === state.selectedChannelId);
     const window = getGuideVirtualWindow(model, {
       scrollTop,
       viewportHeight,
-      preferredIndex: rows.findIndex((row) => row.channel.id === state.selectedChannelId)
+      preferredIndex
     });
     const visibleRows = rows.slice(window.start, window.end + 1);
     const ticks = buildGuideTimeTicks({
@@ -1891,43 +1975,44 @@ export function createLiveTvScreen() {
       stepMinutes: 30
     });
     const nowOffset = computeGuideNowOffset(Date.now(), bounds.startMs, settings.pixelsPerMinute);
-
+    const laneWidth = Math.round(((bounds.endMs - bounds.startMs) / 60000) * settings.pixelsPerMinute);
     return `
       <div class="livetv-guide" data-window-start="${bounds.startMs}">
-        <div class="livetv-guide-header">
-          ${ticks.map((tick) => `<span class="livetv-guide-tick">${escapeHtml(tick.label)}</span>`).join("")}
-        </div>
-        <div class="livetv-guide-body" style="--livetv-now-offset:${nowOffset}px">
-          ${visibleRows
-            .map(
-              (row) => `
-            <div class="livetv-guide-row" data-channel-id="${escapeHtml(row.channel.id)}">
-              <div class="livetv-guide-channel">${escapeHtml(row.channel.name)}</div>
-              <div class="livetv-guide-programs">
-                ${
-                  row.hasEpg
-                    ? row.programs
-                        .map((program) => {
-                          const geometry = computeGuideProgramGeometry(
-                            program,
-                            bounds.startMs,
-                            settings.pixelsPerMinute
-                          );
-                          return `<div class="livetv-guide-program" style="left:${geometry.left}px;width:${geometry.width}px">
-                            <span class="livetv-guide-program-title">${escapeHtml(program.title)}</span>
-                          </div>`;
-                        })
-                        .join("")
-                    : `<div class="livetv-guide-empty">No guide data</div>`
-                }
-              </div>
+        <div class="livetv-guide-scroll">
+          <div class="livetv-guide-inner" style="width:${LIVE_TV_CHANNEL_COLUMN_PX + laneWidth}px">
+            ${renderTimeHeader(bounds, ticks)}
+            <div class="livetv-guide-body">
+              <div class="livetv-guide-spacer" style="height:${window.topSpacer}px"></div>
+              ${visibleRows.map((row) => renderRow(row, bounds, state)).join("")}
+              <div class="livetv-guide-spacer" style="height:${window.bottomSpacer}px"></div>
+              <div class="livetv-guide-now"
+                   style="left:${LIVE_TV_CHANNEL_COLUMN_PX + Math.round(nowOffset)}px;height:${model.totalExtent}px"></div>
             </div>
-          `
-            )
-            .join("")}
+          </div>
         </div>
       </div>
     `;
+  }
+
+  function restoreFocus() {
+    if (!container) {
+      return;
+    }
+    const target =
+      container.querySelector(
+        `${PROGRAM_FOCUS_SELECTOR}[data-channel-id="${focusChannelId}"][data-program-index="${focusProgramIndex}"]`
+      ) ||
+      container.querySelector(`${PROGRAM_FOCUS_SELECTOR}[data-channel-id="${focusChannelId}"]`) ||
+      container.querySelector(PROGRAM_FOCUS_SELECTOR) ||
+      container.querySelector(CHANNEL_FOCUS_SELECTOR);
+    if (target && typeof target.focus === "function") {
+      target.focus();
+    }
+  }
+
+  function syncViewport() {
+    const body = container?.querySelector(".livetv-guide-body");
+    viewportHeight = Number(body?.clientHeight || viewportHeight || 0);
   }
 
   return {
@@ -1976,6 +2061,7 @@ export function createLiveTvScreen() {
     },
 
     async mount(params = {}, navigationContext = {}) {
+      applyAppTheme();
       container = resolveLiveTvHost();
       mounted = true;
       scrollTop = 0;
@@ -1997,6 +2083,7 @@ export function createLiveTvScreen() {
         liveTvState.setSelectedChannel(requestedChannelId);
         liveRecentsStore.record(requestedChannelId);
       }
+      focusChannelId = String(liveTvState.getState().selectedChannelId || requestedChannelId || "");
       await loadEpgForVisible(liveTvState.getState().channels);
       this.render();
     },
@@ -2006,14 +2093,10 @@ export function createLiveTvScreen() {
         return;
       }
       const state = liveTvState.getState();
-      container.innerHTML = `
-        <div class="livetv-shell">
-          <aside class="livetv-sidebar">${renderChannelList(state)}</aside>
-          <main class="livetv-main">${renderGuide(state)}</main>
-        </div>
-      `;
-      ScreenUtils.indexFocusables(container, ".livetv-channel.focusable");
-      ScreenUtils.setInitialFocus(container, ".livetv-channel.focusable");
+      container.innerHTML = `<div class="livetv-shell">${renderGuide(state)}</div>`;
+      ScreenUtils.indexFocusables(container, `${PROGRAM_FOCUS_SELECTOR}, ${CHANNEL_FOCUS_SELECTOR}`);
+      restoreFocus();
+      syncViewport();
     },
 
     handleKey(event) {
@@ -2022,12 +2105,20 @@ export function createLiveTvScreen() {
         return false;
       }
       if (keyCode === 38 || keyCode === 40) {
-        viewportHeight = Number(container?.querySelector(".livetv-guide-body")?.clientHeight || viewportHeight || 0);
-        scrollTop = Math.max(0, scrollTop + (keyCode === 40 ? LIVE_TV_GUIDE_ROW_EXTENT_PX : -LIVE_TV_GUIDE_ROW_EXTENT_PX));
+        syncViewport();
+        scrollTop = Math.max(
+          0,
+          scrollTop + (keyCode === 40 ? LIVE_TV_ROW_EXTENT_PX : -LIVE_TV_ROW_EXTENT_PX)
+        );
         this.render();
         return true;
       }
-      return ScreenUtils.handleDpadNavigation(event, container, ".livetv-channel.focusable");
+      const focusedNode = container?.querySelector(`${PROGRAM_FOCUS_SELECTOR}.focused, ${PROGRAM_FOCUS_SELECTOR}:focus`);
+      if (focusedNode) {
+        focusChannelId = String(focusedNode.dataset.channelId || focusChannelId);
+        focusProgramIndex = Number(focusedNode.dataset.programIndex || 0);
+      }
+      return ScreenUtils.handleDpadNavigation(event, container, `${PROGRAM_FOCUS_SELECTOR}, ${CHANNEL_FOCUS_SELECTOR}`);
     },
 
     getCapabilities() {
