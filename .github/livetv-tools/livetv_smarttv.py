@@ -1751,10 +1751,12 @@ FILES["js/livetv/ui/liveTvScreen.js"] = r"""// Live TV screen — unified guide 
 // getRouteStateKey(params), captureRouteState(), handleKey(event),
 // getCapabilities(), unmount(), isMounted().
 //
-// Layout mirrors the desktop guide: ONE horizontal scroller holds a sticky
-// time header and a vertically virtualized row list; each row is
-// [sticky channel cell][programme lane]; programme cells are absolutely
-// positioned inside the lane; a single now-marker spans the row list.
+// TARGET ENGINE IS CHROMIUM M69 (Tizen 5.5). Do NOT use :is(), :where() or
+// :has() anywhere in this file — they are unsupported and throw SyntaxError.
+// Do NOT pass a comma-separated selector to ScreenUtils either: its
+// moveFocusDirectional() appends ".focused" to the selector string, so
+// ".a, .b.focused" would bind to the last branch only. Both focusable cell
+// types therefore carry one shared class: .livetv-focusable.
 
 import { Platform } from "../../platform/index.js";
 import { ScreenUtils } from "../../ui/navigation/screen.js";
@@ -1785,7 +1787,7 @@ const LIVE_TV_CHANNEL_COLUMN_PX = GUIDE_CHANNEL_COLUMN_WIDTH_PX;
 const BACK_KEY_CODES = new Set([8, 27, 461, 10009]);
 const PROGRAM_FOCUS_SELECTOR = ".livetv-guide-program.focusable";
 const CHANNEL_FOCUS_SELECTOR = ".livetv-guide-channel.focusable";
-const FOCUS_SELECTOR = ":is(.livetv-guide-program, .livetv-guide-channel).focusable";
+const FOCUS_SELECTOR = ".livetv-focusable";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -1888,7 +1890,7 @@ export function createLiveTvScreen() {
       ? `<img class="livetv-guide-channel-logo" src="${escapeHtml(channel.poster)}" alt="" />`
       : `<span class="livetv-guide-channel-logo"></span>`;
     return `
-      <button class="livetv-guide-channel focusable${highlighted ? " is-highlighted" : ""}"
+      <button class="livetv-guide-channel livetv-focusable focusable${highlighted ? " is-highlighted" : ""}"
               type="button"
               data-channel-id="${escapeHtml(channel.id)}"
               data-nav-zone="livetv-channels">
@@ -1913,7 +1915,7 @@ export function createLiveTvScreen() {
       ? Math.max(0, Math.min(1, (nowMs - program.start) / Math.max(1, program.end - program.start)))
       : 0;
     return `
-      <button class="livetv-guide-program focusable${stateClass}"
+      <button class="livetv-guide-program livetv-focusable focusable${stateClass}"
               type="button"
               style="left:${Math.round(geometry.left)}px;width:${Math.round(geometry.width)}px"
               data-channel-id="${escapeHtml(row.channel.id)}"
@@ -2005,8 +2007,10 @@ export function createLiveTvScreen() {
       ) ||
       container.querySelector(`${PROGRAM_FOCUS_SELECTOR}[data-channel-id="${focusChannelId}"]`) ||
       container.querySelector(PROGRAM_FOCUS_SELECTOR) ||
-      container.querySelector(CHANNEL_FOCUS_SELECTOR);
+      container.querySelector(CHANNEL_FOCUS_SELECTOR) ||
+      container.querySelector(FOCUS_SELECTOR);
     if (target && typeof target.focus === "function") {
+      target.classList.add("focused");
       target.focus();
     }
   }
@@ -2114,7 +2118,9 @@ export function createLiveTvScreen() {
         this.render();
         return true;
       }
-      const focusedNode = container?.querySelector(`${PROGRAM_FOCUS_SELECTOR}.focused, ${PROGRAM_FOCUS_SELECTOR}:focus`);
+      const focusedNode =
+        container?.querySelector(`${PROGRAM_FOCUS_SELECTOR}.focused`) ||
+        container?.querySelector(`${PROGRAM_FOCUS_SELECTOR}:focus`);
       if (focusedNode) {
         focusChannelId = String(focusedNode.dataset.channelId || focusChannelId);
         focusProgramIndex = Number(focusedNode.dataset.programIndex || 0);
