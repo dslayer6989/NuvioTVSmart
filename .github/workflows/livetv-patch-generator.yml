@@ -16,8 +16,12 @@ name: Live TV Patch Generator (one-off)
 # ":is(" therefore false-positives. The guard below matches the actual constant
 # assignment only.
 #
-# NOTE ON COMMIT ORDER: git rebase REFUSES to run with uncommitted changes, so
-# the commit MUST happen before the fetch/rebase/push sequence.
+# NOTE ON PUSH STRATEGY: a plain `git push` is attempted FIRST. The rebase path
+# only runs if the push is actually rejected — i.e. only when another writer
+# genuinely raced us. An unconditional `git rebase origin/dev` after the commit
+# fails with "cannot rebase: You have unstaged changes" because actions/checkout
+# leaves a dirty working tree, and it is unnecessary in the common case where
+# nothing else pushed while this job ran.
 
 on:
   workflow_dispatch:
@@ -161,7 +165,7 @@ jobs:
 
           echo "POST_SHA=$(sha256sum "$TARGET" | cut -d' ' -f1)" >> "$GITHUB_ENV"
 
-      - name: Commit, rebase onto origin/dev, and push
+      - name: Commit and push
         run: |
           set -euo pipefail
           if [ -f /tmp/nochange ]; then
@@ -175,10 +179,15 @@ jobs:
             echo "No staged changes to commit."
             exit 0
           fi
-          # COMMIT FIRST. git rebase refuses to run with uncommitted changes,
-          # so the commit must land before the fetch/rebase/push sequence.
           git commit -m "fix(livetv): cw skeleton predicate and expand live tv settings row [skip ci]"
-          # Then rebase onto the latest origin/dev in case another writer landed.
+          # Try a plain push FIRST. It succeeds whenever nothing else pushed to
+          # dev while this job ran — which is the normal case. Only fetch and
+          # rebase if the push is actually rejected.
+          if git push origin HEAD:dev; then
+            echo "Pushed directly."
+            exit 0
+          fi
+          echo "Push rejected — another writer landed. Fetching and rebasing."
           git fetch origin dev
           git rebase origin/dev || { echo "::error::rebase failed"; exit 1; }
           git push origin HEAD:dev
