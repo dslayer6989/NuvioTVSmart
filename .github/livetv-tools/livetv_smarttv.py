@@ -3030,6 +3030,64 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         "    !item?.background &&\n"
         "    !item?.thumbnail;\n",
     ),
+    (
+        "js/ui/screens/settings/settingsScreenMethods-05-render-advanced-section.js",
+        'import * as internals from "./settingsScreenContext.js";\n',
+        'import * as internals from "./settingsScreenContext.js";\n'
+        'import { APP_THEMES, setAppTheme, getAppTheme } from "../../../livetv/ui/liveTvTheme.js";\n',
+    ),
+    (
+        "js/ui/screens/settings/settingsScreenMethods-05-render-advanced-section.js",
+        "      const themeOptions = THEME_OPTIONS.filter((theme) => availableIds.has(theme.id));\n",
+        "      const themeOptions = THEME_OPTIONS.filter((theme) => availableIds.has(theme.id));\n"
+        "      APP_THEMES.forEach((theme) => {\n"
+        "        if (!themeOptions.some((entry) => entry.id === theme.id)) {\n"
+        "          themeOptions.push({\n"
+        "            id: theme.id,\n"
+        "            label: theme.label,\n"
+        '            color: "#00E5FF",\n'
+        '            onColor: "#05040A",\n'
+        "            livetvTheme: true\n"
+        "          });\n"
+        "        }\n"
+        "      });\n",
+    ),
+    (
+        "js/ui/screens/settings/settingsScreenMethods-05-render-advanced-section.js",
+        "      themeOptions.forEach((theme) => {\n"
+        "        this.actionMap.set(`appearance:theme:${theme.id}`, () => {\n"
+        '          if (theme.id === "CUSTOM") {\n'
+        "            this.openCustomThemeEditorDialog(model);\n"
+        "            return;\n"
+        "          }\n"
+        "          ThemeStore.set({ themeName: theme.id, accentColor: theme.color });\n"
+        "          ThemeManager.apply({ enforceAccess: true, access: model?.memberAccess });\n"
+        "        });\n"
+        "      });\n",
+        "      themeOptions.forEach((theme) => {\n"
+        "        this.actionMap.set(`appearance:theme:${theme.id}`, () => {\n"
+        '          if (theme.id === "CUSTOM") {\n'
+        "            this.openCustomThemeEditorDialog(model);\n"
+        "            return;\n"
+        "          }\n"
+        "          if (theme.livetvTheme) {\n"
+        "            setAppTheme(theme.id);\n"
+        "            return;\n"
+        "          }\n"
+        "          ThemeStore.set({ themeName: theme.id, accentColor: theme.color });\n"
+        "          ThemeManager.apply({ enforceAccess: true, access: model?.memberAccess });\n"
+        "        });\n"
+        "      });\n",
+    ),
+    (
+        "js/ui/screens/settings/settingsScreenMethods-05-render-advanced-section.js",
+        "      const palette = ThemeColors.getPalette(theme.id, theme.customThemeColors);\n"
+        '      const swatchBackground = palette["--accent-gradient"] || theme.color;\n'
+        '      const swatchCheckColor = theme.onColor || palette["--on-secondary"] || "#fff";\n',
+        "      const palette = ThemeColors.getPalette(theme.id, theme.customThemeColors) || {};\n"
+        '      const swatchBackground = palette["--accent-gradient"] || theme.color;\n'
+        '      const swatchCheckColor = theme.onColor || palette["--on-secondary"] || "#fff";\n',
+    ),
 ]
 
 
