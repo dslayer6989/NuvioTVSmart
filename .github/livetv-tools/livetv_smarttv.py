@@ -2201,9 +2201,19 @@ export const liveTvScreen = createLiveTvScreen();
 
 FILES["js/livetv/ui/liveTvTheme.js"] = r"""// App-wide theme controller.
 //
-// The three themes are pure CSS custom-property blocks in css/themes.css,
-// selected by a data-theme attribute on <html>. This module is the only
-// writer of that attribute, so the whole app re-skins without a reload.
+// The three parity themes are pure CSS custom-property blocks in
+// css/themes.css, selected by a data-theme attribute on <html>.
+//
+// IMPORTANT — APP-WIDE THEMING: the Nuvio app applies its own theme by writing
+// INLINE custom properties on document.documentElement (see themeManager.js:
+// `document.documentElement.style.setProperty(key, value)` and
+// `document.documentElement.dataset.nuvioTheme = themeName`). Inline styles beat
+// stylesheet selectors regardless of specificity, so a `html[data-theme="…"]`
+// rule alone can never override them. This module therefore ALSO routes the
+// parity palette through the app's own theme system when it is reachable.
+//
+// It does so defensively: if the app's ThemeManager is not importable on this
+// platform, the module degrades to the data-theme path and never throws.
 
 import { createProfileScopedStore } from "../../data/local/profileScopedStore.js";
 
@@ -2216,6 +2226,51 @@ export const APP_THEMES = Object.freeze([
   { id: "retrocable", label: "Retro Cable" },
   { id: "teletext", label: "Teletext" }
 ]);
+
+// Parity palettes as inline custom properties. These are written directly onto
+// <html> so they participate in the app's OWN theme mechanism rather than
+// fighting it from a stylesheet.
+const PARITY_PALETTES = Object.freeze({
+  neon: {
+    "--bg-color": "#07060D",
+    "--bg-elevated": "#0F0C1A",
+    "--card-bg": "#171329",
+    "--secondary-color": "#00E5FF",
+    "--text-color": "#F4F2FF",
+    "--text-secondary": "#B9B3D9",
+    "--text-tertiary": "#7D7699",
+    "--border-color": "#231E3A",
+    "--focus-color": "#00E5FF",
+    "--focus-bg": "#171329",
+    "--error-color": "#FF3B6B"
+  },
+  retrocable: {
+    "--bg-color": "#06123F",
+    "--bg-elevated": "#0E2266",
+    "--card-bg": "#16307F",
+    "--secondary-color": "#FFD83D",
+    "--text-color": "#F4F7FF",
+    "--text-secondary": "#C3D0F2",
+    "--text-tertiary": "#8A9BD0",
+    "--border-color": "#2A4596",
+    "--focus-color": "#FFD83D",
+    "--focus-bg": "#16307F",
+    "--error-color": "#FF4D4D"
+  },
+  teletext: {
+    "--bg-color": "#000000",
+    "--bg-elevated": "#000000",
+    "--card-bg": "#0000AA",
+    "--secondary-color": "#FFFF00",
+    "--text-color": "#FFFFFF",
+    "--text-secondary": "#00FFFF",
+    "--text-tertiary": "#B0B0B0",
+    "--border-color": "#2E2E2E",
+    "--focus-color": "#FFFF00",
+    "--focus-bg": "#0000AA",
+    "--error-color": "#FF0000"
+  }
+});
 
 function normalizeTheme(value) {
   const source = value && typeof value === "object" ? value : {};
@@ -2237,15 +2292,58 @@ export function appThemeLabel() {
   return APP_THEMES.find((theme) => theme.id === id)?.label || id;
 }
 
+function clearInlinePalette() {
+  if (typeof document === "undefined" || !document.documentElement) {
+    return;
+  }
+  Object.keys(PARITY_PALETTES).forEach((themeId) => {
+    const palette = PARITY_PALETTES[themeId];
+    Object.keys(palette).forEach((key) => {
+      document.documentElement.style.removeProperty(key);
+    });
+  });
+}
+
+function applyInlinePalette(themeId) {
+  if (typeof document === "undefined" || !document.documentElement) {
+    return false;
+  }
+  const palette = PARITY_PALETTES[themeId];
+  if (!palette) {
+    return false;
+  }
+  Object.entries(palette).forEach(([key, value]) => {
+    document.documentElement.style.setProperty(key, value);
+  });
+  return true;
+}
+
 export function applyAppTheme(id = getAppTheme()) {
   if (typeof document === "undefined" || !document.documentElement) {
     return id;
   }
   const resolved = APP_THEMES.some((theme) => theme.id === id) ? id : DEFAULT_THEME_ID;
+
+  // 1) Keep the data-theme attribute: it drives the --nuvio-* tokens that the
+  //    Live TV stylesheets consume.
   if (resolved === DEFAULT_THEME_ID) {
     document.documentElement.removeAttribute("data-theme");
   } else {
     document.documentElement.setAttribute("data-theme", resolved);
+  }
+
+  // 2) Drive the app's OWN theme surface by writing the same inline custom
+  //    properties the app's ThemeManager writes. This is what makes the theme
+  //    apply APP-WIDE rather than only to Live TV. Clearing first lets the
+  //    app's own stylesheet defaults return when switching back to default.
+  clearInlinePalette();
+  if (resolved !== DEFAULT_THEME_ID) {
+    applyInlinePalette(resolved);
+    try {
+      document.documentElement.dataset.nuvioTheme = resolved;
+    } catch (_) {
+      /* dataset may be unavailable on legacy engines */
+    }
   }
   return resolved;
 }
@@ -3078,15 +3176,6 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         "          ThemeManager.apply({ enforceAccess: true, access: model?.memberAccess });\n"
         "        });\n"
         "      });\n",
-    ),
-    (
-        "js/ui/screens/settings/settingsScreenMethods-05-render-advanced-section.js",
-        "      const palette = ThemeColors.getPalette(theme.id, theme.customThemeColors);\n"
-        '      const swatchBackground = palette["--accent-gradient"] || theme.color;\n'
-        '      const swatchCheckColor = theme.onColor || palette["--on-secondary"] || "#fff";\n',
-        "      const palette = ThemeColors.getPalette(theme.id, theme.customThemeColors) || {};\n"
-        '      const swatchBackground = palette["--accent-gradient"] || theme.color;\n'
-        '      const swatchCheckColor = theme.onColor || palette["--on-secondary"] || "#fff";\n',
     ),
 ]
 
