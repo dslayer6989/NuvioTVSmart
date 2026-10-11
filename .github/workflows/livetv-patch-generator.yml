@@ -10,6 +10,11 @@ name: Live TV Patch Generator (one-off)
 # file). This workflow never transports the body anywhere — it reads the file
 # from the checked-out working tree, applies two literal string replacements,
 # and pushes. No blob crosses a tool boundary.
+#
+# NOTE ON THE :is( GUARD: the generator's embedded liveTvScreen.js body contains
+# a COMMENT that mentions ":is()" while warning against it. A blanket grep for
+# ":is(" therefore false-positives. The guard below matches the actual constant
+# assignment only.
 
 on:
   workflow_dispatch:
@@ -57,8 +62,6 @@ jobs:
 
           # ------------------------------------------------------------------
           # EDIT 1 — append the CW skeleton-predicate tuple to SURGICAL_EDITS.
-          # Anchor on the final closing bracket of the list by locating the
-          # last occurrence of "\n]" that terminates SURGICAL_EDITS.
           # ------------------------------------------------------------------
           new_tuple = (
               "    (\n"
@@ -81,33 +84,23 @@ jobs:
               if mpos == -1:
                   print("ERROR: SURGICAL_EDITS declaration not found", file=sys.stderr)
                   sys.exit(1)
-              # Find the "\n]" that closes that list, starting after the decl.
               close = src.find("\n]", mpos)
               if close == -1:
                   print("ERROR: SURGICAL_EDITS closing bracket not found", file=sys.stderr)
                   sys.exit(1)
-              # Insert immediately before the "\n]" so the tuple is last.
               src = src[:close + 1] + new_tuple + src[close + 1:]
               print("EDIT 1 applied: appended CW predicate tuple")
 
           # ------------------------------------------------------------------
           # EDIT 2 — flip liveTv: false -> liveTv: true inside the expanded-
           # state tuple's REPLACEMENT only.
-          # Scoped: only the occurrence that sits within the replacement block
-          # of the settingsScreenHelpers-10 tuple is changed.
           # ------------------------------------------------------------------
           target_path = "js/ui/screens/settings/settingsScreenHelpers-10-create-default-expanded-state.js"
-          if "\"liveTv\": true" in src or "liveTv: true" in src.split(target_path, 1)[-1][:2000]:
-              print("EDIT 2 appears already applied — verifying below")
-
-          # Locate the tuple by its target path, then work only inside its scope.
           tpos = src.find('"' + target_path + '"')
           if tpos == -1:
               print(f"ERROR: tuple for {target_path} not found", file=sys.stderr)
               sys.exit(1)
 
-          # The replacement is the third element of the tuple; find the
-          # `liveTv: false` that occurs AFTER tpos.
           needle = 'liveTv: false'
           npos = src.find(needle, tpos)
           if npos == -1:
@@ -148,11 +141,17 @@ jobs:
           grep -q '\.livetv-focusable' "$TARGET" || { echo "::error::Batch A fix missing (.livetv-focusable)"; exit 1; }
           echo "Batch A verified: .livetv-focusable present"
 
-          if grep -q ':is(' "$TARGET"; then
-            echo "::error::Batch A regression: :is( is present again"
+          # Scoped guard: match the actual constant assignment only. A blanket
+          # grep for ":is(" false-positives on the embedded comment in
+          # liveTvScreen.js that WARNS against using :is().
+          if grep -q 'FOCUS_SELECTOR = ":is(' "$TARGET"; then
+            echo "::error::Batch A regression: FOCUS_SELECTOR is assigned a :is() selector"
             exit 1
           fi
-          echo "Batch A verified: :is( absent"
+          echo "Batch A verified: FOCUS_SELECTOR has no :is()"
+
+          grep -q 'FOCUS_SELECTOR = "\.livetv-focusable"' "$TARGET" || { echo "::error::Batch A fix missing (FOCUS_SELECTOR = .livetv-focusable)"; exit 1; }
+          echo "Batch A verified: FOCUS_SELECTOR = .livetv-focusable"
 
           grep -q -- '--nuvio-surface: #1a1a1a' "$TARGET" || { echo "::error::Batch A fix missing (default :root token)"; exit 1; }
           echo "Batch A verified: default :root token present"
@@ -173,6 +172,10 @@ jobs:
             echo "No staged changes to commit."
             exit 0
           fi
+          # Rebase onto origin/dev immediately before pushing; another writer may
+          # have landed while this job was running.
+          git fetch origin dev
+          git rebase origin/dev || { echo "::error::rebase failed"; exit 1; }
           git commit -m "fix(livetv): cw skeleton predicate and expand live tv settings row [skip ci]"
           git push origin HEAD:dev
 
