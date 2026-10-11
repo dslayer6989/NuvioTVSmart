@@ -2840,7 +2840,7 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         "      detailPage: false,\n"
         "      focusedPoster: false,\n"
         "      cardAppearance: false,\n"
-        "      liveTv: false\n"
+        "      liveTv: true\n"
         "    };\n"
         "  }",
     ),
@@ -2961,6 +2961,16 @@ SURGICAL_EDITS: list[tuple[str, str, str]] = [
         '    <link rel="stylesheet" href="css/themes.css?v=20260509s" />\n',
         '    <link rel="stylesheet" href="css/themes.css?v=20260509s" />\n'
         '    <link rel="stylesheet" href="css/livetv.css?v=20260701d" />\n',
+    ),
+    (
+        "js/ui/screens/home/homeScreenHelpers-15-create-poster-card-markup.js",
+        "  const isLoading = Boolean(item?.isLoading);\n",
+        "  const isLoading =\n"
+        "    Boolean(item?.isLoading) &&\n"
+        "    !item?.poster &&\n"
+        "    !item?.backdrop &&\n"
+        "    !item?.background &&\n"
+        "    !item?.thumbnail;\n",
     ),
 ]
 
