@@ -2220,9 +2220,41 @@ export { APP_THEME_KEY, DEFAULT_THEME_ID };
 """
 
 FILES["css/themes.css"] = r"""/* App-wide theme tokens.
-   The default theme is :root in css/base.css — no block here.
-   Every other stylesheet consumes these properties, so setting
-   <html data-theme="..."> re-themes the whole app without a reload. */
+   The DEFAULT theme is the :root block below. It defines every --nuvio-*
+   token with Nuvio-dark values, so the whole app is fully themed with NO
+   data-theme attribute on <html>. The three html[data-theme="..."] blocks
+   that follow override it; they win on specificity (0,1,1 vs 0,1,0) and on
+   source order, so they MUST stay after this block. */
+
+:root {
+  --nuvio-bg: #0d0d0d;
+  --nuvio-surface: #1a1a1a;
+  --nuvio-surface-raised: #222222;
+  --nuvio-panel: rgba(26, 26, 26, 0.8);
+  --nuvio-grid-line: #333333;
+  --nuvio-grid-line-strong: #4a4a4a;
+  --nuvio-accent: #ffffff;
+  --nuvio-accent-soft: #e0e0e0;
+  --nuvio-highlight: #b3b3b3;
+  --nuvio-accent-deep: #808080;
+  --nuvio-live: #cf6679;
+  --nuvio-on-accent: #111111;
+  --nuvio-text-primary: #ffffff;
+  --nuvio-text-secondary: #b3b3b3;
+  --nuvio-text-muted: #808080;
+  --nuvio-past-cell: #141414;
+  --nuvio-future-cell: #1f1f1f;
+  --nuvio-airing-cell: #2a2a2a;
+  --nuvio-accent-gradient: linear-gradient(90deg, #808080, #ffffff, #b3b3b3);
+  --nuvio-airing-gradient: linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  --nuvio-screen-gradient: linear-gradient(180deg, #1a1a1a, #0d0d0d, #0d0d0d);
+  --nuvio-now-gradient: linear-gradient(180deg, #ffffff, #b3b3b3);
+  --nuvio-progress-gradient: linear-gradient(90deg, #ffffff, #b3b3b3);
+  --nuvio-logo-tile: linear-gradient(180deg, #222222, #1a1a1a);
+  --nuvio-corner-scale: 1;
+  --nuvio-glow: 0;
+  --nuvio-heading-font: "Inter", "Segoe UI", Arial, sans-serif;
+}
 
 html[data-theme="neon"] {
   --nuvio-bg: #07060D;
