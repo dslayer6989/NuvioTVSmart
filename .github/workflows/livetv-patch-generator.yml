@@ -15,6 +15,9 @@ name: Live TV Patch Generator (one-off)
 # a COMMENT that mentions ":is()" while warning against it. A blanket grep for
 # ":is(" therefore false-positives. The guard below matches the actual constant
 # assignment only.
+#
+# NOTE ON COMMIT ORDER: git rebase REFUSES to run with uncommitted changes, so
+# the commit MUST happen before the fetch/rebase/push sequence.
 
 on:
   workflow_dispatch:
@@ -158,7 +161,7 @@ jobs:
 
           echo "POST_SHA=$(sha256sum "$TARGET" | cut -d' ' -f1)" >> "$GITHUB_ENV"
 
-      - name: Commit and push
+      - name: Commit, rebase onto origin/dev, and push
         run: |
           set -euo pipefail
           if [ -f /tmp/nochange ]; then
@@ -172,11 +175,12 @@ jobs:
             echo "No staged changes to commit."
             exit 0
           fi
-          # Rebase onto origin/dev immediately before pushing; another writer may
-          # have landed while this job was running.
+          # COMMIT FIRST. git rebase refuses to run with uncommitted changes,
+          # so the commit must land before the fetch/rebase/push sequence.
+          git commit -m "fix(livetv): cw skeleton predicate and expand live tv settings row [skip ci]"
+          # Then rebase onto the latest origin/dev in case another writer landed.
           git fetch origin dev
           git rebase origin/dev || { echo "::error::rebase failed"; exit 1; }
-          git commit -m "fix(livetv): cw skeleton predicate and expand live tv settings row [skip ci]"
           git push origin HEAD:dev
 
       - name: Summary
