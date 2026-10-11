@@ -1748,15 +1748,19 @@ export { LIVE_TV_SETTINGS_KEY };
 FILES["js/livetv/ui/liveTvScreen.js"] = r"""// Live TV screen — unified guide grid.
 //
 // Screen contract: mount(params, navigationContext), render(), cleanup(),
-// getRouteStateKey(params), captureRouteState(), handleKey(event),
+// getRouteStateKey(params), captureRouteState(), onKeyDown(event),
 // getCapabilities(), unmount(), isMounted().
 //
+// IMPORTANT: the app's FocusEngine dispatches every non-Back key to
+// `currentScreen.onKeyDown(event)`. A screen that only defines `handleKey`
+// never receives key events. `onKeyDown` is the required entry point.
+//
 // TARGET ENGINE IS CHROMIUM M69 (Tizen 5.5). Do NOT use :is(), :where() or
-// :has() anywhere in this file — they are unsupported and throw SyntaxError.
-// Do NOT pass a comma-separated selector to ScreenUtils either: its
-// moveFocusDirectional() appends ".focused" to the selector string, so
-// ".a, .b.focused" would bind to the last branch only. Both focusable cell
-// types therefore carry one shared class: .livetv-focusable.
+// :has() — they are unsupported and throw SyntaxError. Do NOT pass a
+// comma-separated selector to ScreenUtils: moveFocusDirectional() appends
+// ".focused" to the selector string, so ".a, .b.focused" binds to the last
+// branch only. Both focusable cell types carry one shared class:
+// .livetv-focusable.
 
 import { Platform } from "../../platform/index.js";
 import { ScreenUtils } from "../../ui/navigation/screen.js";
@@ -1785,6 +1789,7 @@ const LIVE_TV_EPG_PREFETCH_LIMIT = 20;
 const LIVE_TV_ROW_EXTENT_PX = GUIDE_ROW_HEIGHT_PX;
 const LIVE_TV_CHANNEL_COLUMN_PX = GUIDE_CHANNEL_COLUMN_WIDTH_PX;
 const BACK_KEY_CODES = new Set([8, 27, 461, 10009]);
+const ENTER_KEY_CODES = new Set([13, 415]);
 const PROGRAM_FOCUS_SELECTOR = ".livetv-guide-program.focusable";
 const CHANNEL_FOCUS_SELECTOR = ".livetv-guide-channel.focusable";
 const FOCUS_SELECTOR = ".livetv-focusable";
@@ -1891,7 +1896,7 @@ export function createLiveTvScreen() {
       : `<span class="livetv-guide-channel-logo"></span>`;
     return `
       <button class="livetv-guide-channel livetv-focusable focusable${highlighted ? " is-highlighted" : ""}"
-              type="button"
+              type="button" tabindex="0"
               data-channel-id="${escapeHtml(channel.id)}"
               data-nav-zone="livetv-channels">
         <span class="livetv-guide-channel-number">${escapeHtml(number)}</span>
@@ -1916,7 +1921,7 @@ export function createLiveTvScreen() {
       : 0;
     return `
       <button class="livetv-guide-program livetv-focusable focusable${stateClass}"
-              type="button"
+              type="button" tabindex="0"
               style="left:${Math.round(geometry.left)}px;width:${Math.round(geometry.width)}px"
               data-channel-id="${escapeHtml(row.channel.id)}"
               data-program-index="${index}"
@@ -2102,6 +2107,20 @@ export function createLiveTvScreen() {
       ScreenUtils.indexFocusables(container, FOCUS_SELECTOR);
       restoreFocus();
       syncViewport();
+      if (!this._livetvClickBound) {
+        container.addEventListener("click", (event) => {
+          const cell =
+            event.target && event.target.closest ? event.target.closest(FOCUS_SELECTOR) : null;
+          if (cell && container.contains(cell)) {
+            this.activateCell(cell);
+          }
+        });
+        this._livetvClickBound = true;
+      }
+    },
+
+    onKeyDown(event) {
+      return this.handleKey(event);
     },
 
     handleKey(event) {
@@ -2109,23 +2128,47 @@ export function createLiveTvScreen() {
       if (BACK_KEY_CODES.has(keyCode)) {
         return false;
       }
-      if (keyCode === 38 || keyCode === 40) {
+      const direction =
+        keyCode === 38 ? "up" : keyCode === 40 ? "down" : keyCode === 37 ? "left" : keyCode === 39 ? "right" : null;
+      if (direction) {
+        if (typeof event?.preventDefault === "function") {
+          event.preventDefault();
+        }
         syncViewport();
-        scrollTop = Math.max(
-          0,
-          scrollTop + (keyCode === 40 ? LIVE_TV_ROW_EXTENT_PX : -LIVE_TV_ROW_EXTENT_PX)
-        );
-        this.render();
+        ScreenUtils.moveFocusDirectional(container, direction, FOCUS_SELECTOR);
         return true;
       }
-      const focusedNode =
-        container?.querySelector(`${PROGRAM_FOCUS_SELECTOR}.focused`) ||
-        container?.querySelector(`${PROGRAM_FOCUS_SELECTOR}:focus`);
-      if (focusedNode) {
-        focusChannelId = String(focusedNode.dataset.channelId || focusChannelId);
-        focusProgramIndex = Number(focusedNode.dataset.programIndex || 0);
+      if (ENTER_KEY_CODES.has(keyCode)) {
+        const focused =
+          container?.querySelector(`${FOCUS_SELECTOR}.focused`) ||
+          container?.querySelector(`${FOCUS_SELECTOR}:focus`);
+        if (focused) {
+          if (typeof event?.preventDefault === "function") {
+            event.preventDefault();
+          }
+          this.activateCell(focused);
+          return true;
+        }
       }
-      return ScreenUtils.handleDpadNavigation(event, container, FOCUS_SELECTOR);
+      return false;
+    },
+
+    activateCell(cell) {
+      if (!cell) {
+        return;
+      }
+      const channelId = String(cell.dataset.channelId || "");
+      const hasProgramIndex = cell.dataset.programIndex !== undefined;
+      const programIndex = hasProgramIndex ? Number(cell.dataset.programIndex || 0) : null;
+      if (channelId) {
+        liveTvState.setSelectedChannel(channelId);
+        liveRecentsStore.record(channelId);
+      }
+      if (programIndex !== null) {
+        focusChannelId = channelId;
+        focusProgramIndex = programIndex;
+      }
+      this.render();
     },
 
     getCapabilities() {
@@ -2135,6 +2178,7 @@ export function createLiveTvScreen() {
 
     cleanup() {
       mounted = false;
+      this._livetvClickBound = false;
       if (container) {
         container.innerHTML = "";
         ScreenUtils.hide(container);
@@ -2691,6 +2735,20 @@ FILES["css/livetv.css"] = r"""/* Live TV unified guide grid — Smart TV (Tizen 
 }
 .livetv-setup-action.focused,
 .livetv-setup-action:focus { border-color: var(--nuvio-accent); }
+
+/* Kill Chromium's default focus outline on grid cells; use the themed ring. */
+.livetv-focusable:focus { outline: none; }
+.livetv-focusable.focused,
+.livetv-focusable:focus {
+  outline: 3px solid var(--nuvio-accent);
+  outline-offset: -3px;
+}
+.livetv-guide-channel.focused,
+.livetv-guide-channel:focus { background: var(--nuvio-surface-raised); }
+.livetv-guide-program.focused .livetv-guide-program-fill,
+.livetv-guide-program:focus .livetv-guide-program-fill {
+  border: 3px solid var(--nuvio-accent);
+}
 """
 
 # --- Surgical edits -------------------------------------------------------
