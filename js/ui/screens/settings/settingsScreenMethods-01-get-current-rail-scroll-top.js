@@ -109,6 +109,7 @@ export function createSettingsScreenMethods01() {
       this.contentFocusKey = persistedUiState.contentFocusKey || this.contentFocusKey || null;
       // Live TV opens Settings straight on its own page (and may ask for a setup dialog).
       this.pendingLiveTvAction = null;
+      this.liveTvReturnOnBack = _params?.section === "liveTv" && navigationContext?.previousRoute === "liveTv";
       if (_params?.section === "liveTv" && !navigationContext?.isBackNavigation) {
         this.activeSection = "liveTv";
         this.navIndex = null;

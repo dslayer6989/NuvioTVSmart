@@ -443,6 +443,7 @@ export function createPlayerLiveTvMethods() {
         </div>`
         : "";
       overlay.innerHTML = `${banner}${this.liveTvListOpen ? this.liveTvRenderList(now) : ""}`;
+      overlay.dataset.channelId = channel.id;
       overlay.classList.toggle("is-list-open", Boolean(this.liveTvListOpen));
       if (this.liveTvListOpen) {
         overlay.querySelector(".ltv-player-list-row.focused")?.focus?.({ preventScroll: true });

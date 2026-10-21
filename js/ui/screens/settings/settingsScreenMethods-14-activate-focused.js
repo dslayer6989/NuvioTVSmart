@@ -341,6 +341,12 @@ export function createSettingsScreenMethods14() {
         void this.render({ refreshModel: false });
         return true;
       }
+      // Opened from Live TV (its Settings or setup buttons): Back goes straight back there.
+      if (this.liveTvReturnOnBack && Router.stack?.length) {
+        this.liveTvReturnOnBack = false;
+        void Router.back({ skipConsume: true });
+        return "history";
+      }
       if (this.focusZone === "sidebar") {
         Platform.exitApp();
       } else {
