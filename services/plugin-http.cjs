@@ -1182,6 +1182,28 @@ function createPluginHttpServer({ port = 2711, logger = console, trace } = {}) {
       response.end();
       return;
     }
+    if (request.url === "/livetv-config" && request.method === "POST") {
+      readBody(request, function (bodyError, payload) {
+        if (bodyError) return send(response, 400, { returnValue: false });
+        try {
+          require("./livetv-phone-config.cjs")
+            .control(payload)
+            .then(
+              function (result) {
+                send(response, 200, Object.assign({ returnValue: true }, result));
+              },
+              function () {
+                send(response, payload && payload.action === "read" ? 410 : 503, {
+                  returnValue: false
+                });
+              }
+            );
+        } catch (_) {
+          send(response, 503, { returnValue: false });
+        }
+      });
+      return;
+    }
     if (request.url === "/poster-config" && request.method === "POST") {
       readBody(request, function (bodyError, payload) {
         if (bodyError) return send(response, 400, { returnValue: false });

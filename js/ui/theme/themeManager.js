@@ -5,6 +5,7 @@ import { syncBrandWordmarks } from "../components/brandWordmark.js";
 import { resolveThemeName } from "./themeAccess.js";
 import { ThemeColors } from "./themeColors.js";
 import { resolveCustomThemeColors } from "../../core/util/customThemeColors.js";
+import { applyLiveTvTheme } from "../../livetv/liveTvThemes.js";
 
 const FONT_STACKS = {
   INTER: '"Inter", "Segoe UI", Arial, sans-serif',
@@ -225,6 +226,7 @@ export const ThemeManager = {
       FONT_STACKS[String(theme.fontFamily || "INTER").toUpperCase()] || FONT_STACKS.INTER
     );
     document.documentElement.dataset.nuvioTheme = themeName;
+    applyLiveTvTheme(themeName, colors);
     syncBrandWordmarks(themeName);
     syncLoadingIndicatorPalette(colors);
     document.documentElement.style.setProperty("color-scheme", "dark");

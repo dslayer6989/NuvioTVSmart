@@ -15,12 +15,12 @@ const distDir = path.join(rootDir, "dist");
 const cacheDir = path.join(rootDir, ".cache");
 const stagingDir = path.join(cacheDir, "webos-package");
 const appStageDir = path.join(stagingDir, "app");
-const serviceStageDir = path.join(stagingDir, "space.nuvio.webos.service");
-const pluginServiceStageDir = path.join(stagingDir, "space.nuvio.webos.plugin.service");
+const serviceStageDir = path.join(stagingDir, "com.wgdively.nuvio.livetv.service");
+const pluginServiceStageDir = path.join(stagingDir, "com.wgdively.nuvio.livetv.plugin.service");
 
-const appName = "Nuvio TV";
-const webOsServiceId = "space.nuvio.webos.service";
-const webOsPluginServiceId = "space.nuvio.webos.plugin.service";
+const appName = "Nuvio Live TV";
+const webOsServiceId = "com.wgdively.nuvio.livetv.service";
+const webOsPluginServiceId = "com.wgdively.nuvio.livetv.plugin.service";
 const webOsServiceSourceDir = path.join(rootDir, "services", "webos");
 const webOsPluginServiceSourceDir = path.join(rootDir, "services", "webos", "plugin");
 const webOsRuntimeScriptPath = "assets/libs/webOSTV.js";
@@ -328,7 +328,7 @@ async function packageWebOs() {
     ]);
   } catch (error) {
     const { version } = await readAppMetadata();
-    const expectedIpk = path.join(rootDir, `space.nuvio.webos_${version}_all.ipk`);
+    const expectedIpk = path.join(rootDir, `com.wgdively.nuvio.livetv_${version}_all.ipk`);
     if (await pathExists(expectedIpk)) {
       console.warn(
         `ares-package exited with an error, but ${expectedIpk} was created successfully. Continuing.`

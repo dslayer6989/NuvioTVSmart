@@ -135,6 +135,7 @@ import { getLatestAppUpdate } from "../../../core/update/appUpdateService.js";
 import { showAppUpdatePrompt } from "../../components/appUpdatePrompt.js";
 
 import { formatSettingsVersionLabel } from "./settingsScreenHelpers-04-row-icons.js";
+import { LIVE_TV_THEME_OPTIONS } from "../../../livetv/liveTvThemes.js";
 
 export const SETTINGS_UI_STATE_KEY = "settingsScreenUiState";
 
@@ -251,7 +252,8 @@ export const THEME_OPTIONS = [
     color: "#fb8c00",
     onColor: "#ffffff"
   },
-  { id: "ROSE", labelKey: "settings.appearance.themes.rose", color: "#d81b60", onColor: "#ffffff" }
+  { id: "ROSE", labelKey: "settings.appearance.themes.rose", color: "#d81b60", onColor: "#ffffff" },
+  ...LIVE_TV_THEME_OPTIONS
 ];
 
 export const FONT_OPTIONS = [

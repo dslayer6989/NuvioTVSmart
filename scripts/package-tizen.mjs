@@ -19,10 +19,10 @@ const requireConfiguredRuntimeEnv = /^(1|true|yes|on)$/i.test(
   String(process.env.NUVIO_REQUIRE_LOCAL_PROPERTIES || "")
 );
 
-const appName = "Nuvio TV";
-const defaultTizenPackageId = "NuvioTV001";
-const defaultTizenAppId = "NuvioTV001.NuvioTV";
-const defaultWidgetUri = "https://nuvio.tv";
+const appName = "Nuvio Live TV";
+const defaultTizenPackageId = "NuvioLive1";
+const defaultTizenAppId = "NuvioLive1.NuvioLiveTV";
+const defaultWidgetUri = "https://nuvio.tv/livetv";
 const tizenEngineFsServiceRelativePath = "services/tizen/enginefs-service.js";
 const tizenEngineFsRuntimeDirRelativePath = "services/tizen/runtime";
 const tizenPluginServiceRelativePath = "services/tizen/plugin-service.js";
@@ -218,7 +218,13 @@ if (tvInput && typeof tvInput.registerKey === "function") {
     "MediaFastForward",
     "MediaRewind",
     "MediaTrackPrevious",
-    "MediaTrackNext"
+    "MediaTrackNext",
+    "ChannelUp",
+    "ChannelDown",
+    "ColorF0Red",
+    "ColorF1Green",
+    "ColorF2Yellow",
+    "ColorF3Blue"
   ].forEach(function registerKey(keyName) {
     try {
       tvInput.registerKey(keyName);
@@ -268,6 +274,11 @@ async function stageTizenEngineFsService() {
       path.join(rootDir, "services", "tizen", "runtime"),
       path.join(stagingDir, tizenEngineFsRuntimeDirRelativePath),
       { recursive: true }
+    ),
+    // Live TV phone setup page, served by runtime/livetv-phone-service.cjs.
+    cp(
+      path.join(rootDir, "services", "livetv-phone-config.cjs"),
+      path.join(stagingDir, "services", "livetv-phone-config.cjs")
     )
   ]);
   // The source runtime keeps a small alias so it can be tested in-place. A

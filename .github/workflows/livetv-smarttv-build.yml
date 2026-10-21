@@ -1,0 +1,177 @@
+name: Live TV Smart TV build
+
+# Builds the Samsung (Tizen 5+) and LG (webOS 5+) Live TV apps the same way as the other
+# Nuvio Live TV apps: livetv/nuvio-livetv-smarttv.patch is applied to a clean copy of
+# NuvioMedia/NuvioTVSmart at the commit in livetv/UPSTREAM_COMMIT, then built and tested.
+#
+# - Every push to dev: check the patch, run the tests (including the remote-control test),
+#   build both packages and keep them as workflow artifacts. No release.
+# - A pushed tag named livetv-smarttv-v*: the same, then publish a GitHub release with
+#   Nuvio-LiveTV-Samsung-Tizen.wgt and Nuvio-LiveTV-LG-webOS.ipk (the installer picks them up).
+
+on:
+  push:
+    branches: [dev]
+    tags: ["livetv-smarttv-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: livetv-smarttv-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PLAYWRIGHT_VERSION: 1.56.1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Apply the Live TV patch to NuvioMedia's code at the pinned commit
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "github-actions"
+          livetv/check-patch.sh "$RUNNER_TEMP/livetv"
+          echo "APP_DIR=$RUNNER_TEMP/livetv/upstream" >> "$GITHUB_ENV"
+
+      - name: Write local properties
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          NUVIO_LOCAL_PROPERTIES: ${{ secrets.NUVIO_LOCAL_PROPERTIES }}
+        run: |
+          LOCAL_PROPERTIES="$NUVIO_LOCAL_PROPERTIES"
+          if [ -z "${LOCAL_PROPERTIES//[[:space:]]/}" ]; then
+            echo "::error::The NUVIO_LOCAL_PROPERTIES secret is required to build the TV apps."
+            exit 1
+          fi
+          printf '%s\n' "$LOCAL_PROPERTIES" > local.properties
+
+      - name: Install dependencies
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          HUSKY: "0"
+        run: npm ci --no-audit --no-fund
+
+      - name: Live TV unit tests
+        working-directory: ${{ env.APP_DIR }}
+        run: node --test scripts/test-livetv-guide.mjs scripts/test-livetv-phone.mjs
+
+      - name: Build the Samsung (Tizen) package
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          NUVIO_REQUIRE_LOCAL_PROPERTIES: "1"
+          TIZEN_INCLUDE_ENGINEFS_SERVICE: "1"
+        run: |
+          npm run package:tizen
+          set -- NuvioLive1_*.wgt
+          [ -e "$1" ] || { echo "::error::The Tizen package was not created"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/out"
+          mv "$1" "$RUNNER_TEMP/out/Nuvio-LiveTV-Samsung-Tizen.wgt"
+
+      - name: Check the Samsung package
+        run: |
+          cd "$RUNNER_TEMP" && rm -rf wgt && mkdir wgt && cd wgt
+          unzip -q "$RUNNER_TEMP/out/Nuvio-LiveTV-Samsung-Tizen.wgt"
+          grep -q 'id="NuvioLive1.NuvioLiveTV"' config.xml
+          grep -q 'package="NuvioLive1"' config.xml
+          grep -q 'required_version="5.0"' config.xml
+          grep -q '<name>Nuvio Live TV</name>' config.xml
+          grep -q 'ChannelUp' main.js
+          for file in services/tizen/enginefs-service.js services/tizen/runtime/livetv-phone-service.cjs \
+                      services/livetv-phone-config.cjs assets/fonts/theme/theme_vt323_regular.ttf; do
+            [ -e "$file" ] || { echo "::error::$file is missing from the WGT"; exit 1; }
+          done
+          echo "Samsung package looks right."
+
+      - name: Build the LG (webOS) package
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          NUVIO_REQUIRE_LOCAL_PROPERTIES: "1"
+        run: |
+          npm run package:webos
+          set -- com.wgdively.nuvio.livetv_*_all.ipk
+          [ -e "$1" ] || { echo "::error::The webOS package was not created"; exit 1; }
+          mv "$1" "$RUNNER_TEMP/out/Nuvio-LiveTV-LG-webOS.ipk"
+
+      - name: Remote-control test (arrows, OK and Back on every Live TV screen)
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          npm run build
+          mkdir -p "$RUNNER_TEMP/pw"
+          cd "$RUNNER_TEMP/pw"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "playwright@$PLAYWRIGHT_VERSION" > /dev/null
+          npx playwright install --with-deps chromium > /dev/null
+          cp -r "$GITHUB_WORKSPACE/livetv/remote-test" "$RUNNER_TEMP/pw/remote-test"
+          node "$RUNNER_TEMP/pw/remote-test/remote-nav.mjs" "$APP_DIR/dist" "$RUNNER_TEMP/out/remote-test-screens"
+
+      - name: Keep the packages
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuvio-livetv-smarttv
+          path: |
+            ${{ runner.temp }}/out/Nuvio-LiveTV-Samsung-Tizen.wgt
+            ${{ runner.temp }}/out/Nuvio-LiveTV-LG-webOS.ipk
+            ${{ runner.temp }}/out/remote-test-screens
+            livetv/nuvio-livetv-smarttv.patch
+          retention-days: 14
+          if-no-files-found: warn
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/livetv-smarttv-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v4
+
+      - name: Get the packages
+        uses: actions/download-artifact@v4
+        with:
+          name: nuvio-livetv-smarttv
+          path: out
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          WGT="$(find out -name Nuvio-LiveTV-Samsung-Tizen.wgt | head -1)"
+          IPK="$(find out -name Nuvio-LiveTV-LG-webOS.ipk | head -1)"
+          PATCH="$(find out -name nuvio-livetv-smarttv.patch | head -1)"
+          PIN="$(tr -d '[:space:]' < livetv/UPSTREAM_COMMIT)"
+          cat > notes.md <<EOF
+          Nuvio Live TV for Samsung (Tizen 5.0 and newer, 2019+) and LG (webOS 5 and newer) TVs.
+
+          Built from NuvioMedia/NuvioTVSmart at \`${PIN:0:8}\` plus the Live TV patch (\`nuvio-livetv-smarttv.patch\`).
+          It installs next to NuvioMedia's own Nuvio TV app as "Nuvio Live TV".
+
+          **Install:** use the Nuvio TV Smart Installer from dslayer6989/NuvioTVSmart-Installer
+          (Samsung: Developer Mode with your computer's IP; LG: the Developer Mode app).
+
+          **First run:** open Live TV in the sidebar and choose "Set up with your phone" (scan the QR code)
+          or "Type the link", then enter your addon link, for example https://dslayer6989.github.io/Stremio-TV
+
+          **Remote:** arrows, OK and Back do everything. Hold OK for channel options. In the player,
+          Left (or the green button) opens the channel list and CH▲/▼ change channel.
+          Red = favorite, Yellow/Blue = 2 hours back/ahead in the guide.
+          EOF
+          gh release create "$TAG" "$WGT" "$IPK" "$PATCH" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Nuvio Live TV for Samsung & LG ($TAG)" \
+            --notes-file notes.md \
+            --target "$GITHUB_SHA"

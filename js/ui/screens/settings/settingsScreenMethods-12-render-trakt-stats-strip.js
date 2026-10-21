@@ -1,3 +1,4 @@
+import { renderLiveTvSettingsSection } from "../../../livetv/liveTvSettings.js";
 import { renderAmbientSection } from "./settingsAmbientSection.js";
 import { renderWatchPartySection } from "./settingsWatchPartySection.js";
 /* eslint-disable no-unused-vars */
@@ -189,6 +190,7 @@ export function createSettingsScreenMethods12() {
       if (section.id === "ambient") return renderAmbientSection.call(this);
       if (section.id === "layout") return this.renderLayoutSection(model);
       if (section.id === "contentDiscovery") return this.renderContentDiscoverySection();
+      if (section.id === "liveTv") return renderLiveTvSettingsSection.call(this, model);
       if (section.id === "plugins") return this.renderPluginsSection(model);
       if (section.id === "integration") return this.renderIntegrationSection(model);
       if (section.id === "streams") return this.renderStreamsSection(model);

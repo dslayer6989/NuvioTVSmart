@@ -193,6 +193,9 @@ export function createPlayerScreenMethods70() {
       );
     },
     consumeBackRequest() {
+      if (this.liveTvConsumeBack()) {
+        return true;
+      }
       if (this.isStartupErrorVisible()) {
         if (this.navigateBackToStreamScreen()) {
           return true;

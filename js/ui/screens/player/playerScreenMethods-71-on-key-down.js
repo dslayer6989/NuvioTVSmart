@@ -9,6 +9,9 @@ export function createPlayerScreenMethods71() {
     async onKeyDown(event) {
       const keyCode = Number(event?.keyCode || 0);
       const isBackKey = isBackEvent(event);
+      if (!isBackKey && this.liveTvHandleKey(event)) {
+        return;
+      }
       if (this.isStartupErrorVisible()) {
         event?.preventDefault?.();
         event?.stopPropagation?.();

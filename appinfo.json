@@ -1,10 +1,10 @@
 {
-  "id": "space.nuvio.webos",
+  "id": "com.wgdively.nuvio.livetv",
   "version": "1.2.9",
   "vendor": "Nuvio Media",
   "type": "web",
   "main": "index.html",
-  "title": "Nuvio TV",
+  "title": "Nuvio Live TV",
   "appDescription": "Bring your sources together in one TV library.",
   "keywords": ["streaming", "video", "media", "tv"],
   "category": "entertainment",
@@ -15,7 +15,7 @@
   "handlesRelaunch": true,
   "resolution": "1920x1080",
   "transparent": false,
-  "services": ["space.nuvio.webos.service"],
+  "services": ["com.wgdively.nuvio.livetv.service"],
   "requiredPermissions": ["internet", "media.operation", "media.query"],
   "requiredACG": [
     "application.launcher",

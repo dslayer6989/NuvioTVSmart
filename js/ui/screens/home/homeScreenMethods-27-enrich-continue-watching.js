@@ -1,5 +1,6 @@
 import { resolveContinueWatchingEpisodeRating } from "./continueWatchingEpisodeRating.js";
 import * as internals from "./homeScreenContext.js";
+import { activateLiveTvHomeItem, isLiveTvHomeRow } from "../../../livetv/liveTvHomeRow.js";
 
 export function createHomeScreenMethods27() {
   const {
@@ -157,6 +158,7 @@ export function createHomeScreenMethods27() {
     },
     pickHeroItem(rows) {
       for (const row of rows) {
+        if (isLiveTvHomeRow(row)) continue;
         const first = row.result?.data?.items?.[0];
         if (first) {
           return normalizeHomeRowItem(row, first);
@@ -169,6 +171,7 @@ export function createHomeScreenMethods27() {
       const selectedKeys = new Set(this.layoutPrefs?.heroCatalogKeys || []);
       const eligibleRows = selectedKeys.size ? (rows || []).filter((row) => selectedKeys.has(String(row?.homeCatalogKey || ""))) : rows;
       eligibleRows.forEach((row) => {
+        if (isLiveTvHomeRow(row)) return;
         (row?.result?.data?.items || []).slice(0, 4).forEach((item) => {
           const normalized = normalizeHomeRowItem(row, item);
           if (!normalized?.id || flat.some((entry) => entry.id === normalized.id)) {
@@ -250,6 +253,9 @@ export function createHomeScreenMethods27() {
         return;
       }
       this.rememberReturnFocusForNode(node);
+      if (activateLiveTvHomeItem(itemId)) {
+        return;
+      }
       Router.navigate("detail", {
         itemId,
         itemType: node.dataset.itemType || node.dataset.catalogType || "movie",
