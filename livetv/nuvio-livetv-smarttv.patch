@@ -7172,7 +7172,7 @@ index 0000000000000000000000000000000000000000..bcb092f7e62f6e0455177e95e75cf8a6
 +OTHER DEALINGS IN THE FONT SOFTWARE.
 diff --git a/css/livetv.css b/css/livetv.css
 new file mode 100644
-index 0000000000000000000000000000000000000000..1d38fd1a3730738ba6eb7207af4d1bab74e7f9ce
+index 0000000000000000000000000000000000000000..4242819025f4f13ed17079d92b60b1a288ba0e44
 --- /dev/null
 +++ b/css/livetv.css
 @@ -0,0 +1,1474 @@
@@ -7412,7 +7412,7 @@ index 0000000000000000000000000000000000000000..1d38fd1a3730738ba6eb7207af4d1bab
 +  background: var(--ltv-progress-gradient);
 +}
 +
-+html.ltv-glow .ltv-progress-fill {
++html.ltv-glow:not(.performance-constrained) .ltv-progress-fill {
 +  box-shadow: 0 0 8px var(--ltv-accent);
 +}
 +
@@ -7481,7 +7481,7 @@ index 0000000000000000000000000000000000000000..1d38fd1a3730738ba6eb7207af4d1bab
 +  box-shadow: 0 0 0 3px var(--ltv-accent);
 +}
 +
-+html.ltv-glow .ltv-pill.focused {
++html.ltv-glow:not(.performance-constrained) .ltv-pill.focused {
 +  box-shadow:
 +    0 0 0 3px var(--ltv-accent),
 +    0 0 18px var(--ltv-accent);
@@ -7539,7 +7539,7 @@ index 0000000000000000000000000000000000000000..1d38fd1a3730738ba6eb7207af4d1bab
 +  font-family: var(--app-font-family);
 +}
 +
-+html.ltv-glow .ltv-title-text {
++html.ltv-glow:not(.performance-constrained) .ltv-title-text {
 +  text-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
 +}
 +
@@ -7601,7 +7601,7 @@ index 0000000000000000000000000000000000000000..1d38fd1a3730738ba6eb7207af4d1bab
 +  transform: scale(1.05);
 +}
 +
-+html.ltv-glow .ltv-action.focused {
++html.ltv-glow:not(.performance-constrained) .ltv-action.focused {
 +  box-shadow: 0 0 20px var(--ltv-accent);
 +}
 +
@@ -7951,7 +7951,7 @@ index 0000000000000000000000000000000000000000..1d38fd1a3730738ba6eb7207af4d1bab
 +  font-style: normal;
 +}
 +
-+html.ltv-glow .ltv-program-cell.focused {
++html.ltv-glow:not(.performance-constrained) .ltv-program-cell.focused {
 +  box-shadow:
 +    0 0 0 3px var(--ltv-accent-soft),
 +    0 0 22px var(--ltv-accent);
@@ -7977,7 +7977,7 @@ index 0000000000000000000000000000000000000000..1d38fd1a3730738ba6eb7207af4d1bab
 +  pointer-events: none;
 +}
 +
-+html.ltv-glow .ltv-now-line {
++html.ltv-glow:not(.performance-constrained) .ltv-now-line {
 +  box-shadow: 0 0 12px var(--ltv-accent);
 +}
 +
@@ -8168,7 +8168,7 @@ index 0000000000000000000000000000000000000000..1d38fd1a3730738ba6eb7207af4d1bab
 +  background: var(--ltv-airing-gradient);
 +}
 +
-+html.ltv-glow .ltv-onnow-card.focused {
++html.ltv-glow:not(.performance-constrained) .ltv-onnow-card.focused {
 +  box-shadow:
 +    0 0 0 4px var(--ltv-accent),
 +    0 0 26px var(--ltv-accent);
@@ -8607,7 +8607,7 @@ index 0000000000000000000000000000000000000000..1d38fd1a3730738ba6eb7207af4d1bab
 +  color: var(--ltv-on-accent);
 +}
 +
-+html.ltv-glow .ltv-player-list-row.focused {
++html.ltv-glow:not(.performance-constrained) .ltv-player-list-row.focused {
 +  box-shadow: 0 0 20px var(--ltv-accent);
 +}
 +
@@ -9980,10 +9980,10 @@ index 0000000000000000000000000000000000000000..8b17a544b3114c8d501279b0705ec928
 +};
 diff --git a/js/livetv/liveTvPlayer.js b/js/livetv/liveTvPlayer.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..aebc78709aec9c69c04faec03ff0a18bdb6a99c0
+index 0000000000000000000000000000000000000000..79be4115125d2a2d747fb906430248026672836e
 --- /dev/null
 +++ b/js/livetv/liveTvPlayer.js
-@@ -0,0 +1,510 @@
+@@ -0,0 +1,514 @@
 +// Live TV additions to the player: automatic failover to backup sources (on errors and a
 +// 20-second startup watchdog), remembering the source that worked, a channel banner,
 +// channel up/down, and a slide-out channel list with a Sources section.
@@ -10272,6 +10272,10 @@ index 0000000000000000000000000000000000000000..aebc78709aec9c69c04faec03ff0a18b
 +          return stop();
 +        }
 +        if (code === KEY.ENTER) {
++          // The Magic Remote pointer may have moved focus to another row.
++          const pointed = globalThis.document?.activeElement?.closest?.("[data-ltv-list-index]");
++          if (pointed)
++            this.liveTvListIndex = Number(pointed.dataset.ltvListIndex || this.liveTvListIndex);
 +          if (!event?.repeat) this.liveTvActivateListRow();
 +          return stop();
 +        }
@@ -11917,10 +11921,10 @@ index 0000000000000000000000000000000000000000..26a23363b6db655cd2147ba65b0f65cc
 +}
 diff --git a/js/livetv/ui/liveTvGuideView.js b/js/livetv/ui/liveTvGuideView.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..2b8857ee30b0a59bab37683d40ec98ac2ead3206
+index 0000000000000000000000000000000000000000..be26d458c1c00b8e833f723184eb9287de9932e1
 --- /dev/null
 +++ b/js/livetv/ui/liveTvGuideView.js
-@@ -0,0 +1,228 @@
+@@ -0,0 +1,230 @@
 +// The program guide grid: a channel column, a half-hour time bar and programme cells.
 +// Only the rows and the time span on screen are drawn, so even 2019 TVs stay smooth.
 +
@@ -11986,12 +11990,14 @@ index 0000000000000000000000000000000000000000..2b8857ee30b0a59bab37683d40ec98ac
 +
 +function renderTimeBar(view, nowMs, dayLabel) {
 +  const slots = [];
++  const nowInView = nowMs >= view.startMs && nowMs < view.endMs;
 +  for (let slot = view.startMs; slot < view.endMs; slot += HALF_HOUR_MS) {
++    // The "now" pill already shows the time; don't let a slot label sit under it.
++    if (nowInView && slot > nowMs - pxToMs(110) && slot < nowMs + pxToMs(70)) continue;
 +    slots.push(
 +      `<span class="ltv-time-slot" style="left:${Math.round(msToPx(slot - view.startMs))}px">${escapeHtml(formatClock(slot))}</span>`
 +    );
 +  }
-+  const nowInView = nowMs >= view.startMs && nowMs < view.endMs;
 +  return `
 +    <div class="ltv-time-bar" data-ltv-key="timebar" style="height:${GUIDE_TIME_BAR_PX}px">
 +      <div class="ltv-time-day" style="width:${GUIDE_CHANNEL_COLUMN_PX}px">${escapeHtml(dayLabel)}</div>
@@ -12316,10 +12322,10 @@ index 0000000000000000000000000000000000000000..402a4c439ad8d77d4c28057cf74d962a
 +}
 diff --git a/js/livetv/ui/liveTvScreen.js b/js/livetv/ui/liveTvScreen.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..f9d01608cb6b7f9052e1cd46ede727bdfc054e68
+index 0000000000000000000000000000000000000000..c63f26f8e56fed844efc99dcbdcc88549ff3b935
 --- /dev/null
 +++ b/js/livetv/ui/liveTvScreen.js
-@@ -0,0 +1,1261 @@
+@@ -0,0 +1,1288 @@
 +// The Live TV screen: program guide and On Now views, category chips, favorites,
 +// recently watched and a channel options menu. Every control works with the remote's
 +// arrows, OK and Back; colour and channel keys are shortcuts on top.
@@ -13528,46 +13534,73 @@ index 0000000000000000000000000000000000000000..f9d01608cb6b7f9052e1cd46ede727bd
 +
 +  // --- Magic Remote / mouse ---------------------------------------------------------
 +
++  /** Points `this.ui` at a Live TV element (Magic Remote pointer or mouse). */
++  syncUiFromTarget(target) {
++    const node = target?.closest?.("[data-ltv-zone]");
++    if (!node || !this.container?.contains(node)) return null;
++    const zone = node.dataset.ltvZone;
++    if (zone === "menu") {
++      if (this.menu) this.menu.index = Number(node.dataset.ltvIndex || 0);
++      return zone;
++    }
++    if (this.menu) return null;
++    this.focusZone = "content";
++    this.ui.zone = zone;
++    if (zone === "grid") {
++      this.ui.row = Number(node.dataset.ltvRow || 0);
++      this.ui.cell = Number(node.dataset.ltvCell || 0);
++      this.ui.cellRow = this.ui.row;
++      this.ui.cellChannelId = this.visibleChannels()[this.ui.row]?.id;
++    } else if (zone === "channel") {
++      const channelId = node.dataset.ltvChannelId;
++      this.ui.row = Math.max(
++        0,
++        this.visibleChannels().findIndex((channel) => channel.id === channelId)
++      );
++    } else {
++      const key = {
++        header: "headerIndex",
++        chips: "chipIndex",
++        sort: "sortIndex",
++        recents: "recentIndex",
++        state: "stateIndex",
++        cards: "cardIndex"
++      }[zone];
++      if (key) this.ui[key] = Number(node.dataset.ltvIndex || 0);
++    }
++    return zone;
++  },
++
++  activatePointerTarget(target) {
++    const zone = this.syncUiFromTarget(target);
++    if (!zone) return false;
++    if (zone === "menu") {
++      this.activateMenu();
++      return true;
++    }
++    this.activateFocused();
++    this.renderContent();
++    return true;
++  },
++
++  // LG Magic Remote: hovering moves the remote's focus; clicking acts like OK.
++  onPointerFocus(target) {
++    // Keep the details panel in step with the programme under the pointer.
++    if (this.syncUiFromTarget(target) === "grid") this.renderContent();
++  },
++
++  onPointerActivate(target) {
++    return this.activatePointerTarget(target);
++  },
++
 +  bindPointerEvents() {
 +    const root = this.container;
 +    if (!root || root.__ltvPointerBound) return;
 +    root.__ltvPointerBound = true;
++    // Mouse clicks outside webOS (webOS clicks arrive through onPointerActivate).
 +    root.addEventListener("click", (event) => {
 +      if (Number(event?.detail || 0) === 0) return; // keyboard-generated click; keys are handled already
-+      const target = event.target?.closest?.("[data-ltv-zone]");
-+      if (!target || !root.contains(target)) return;
-+      const zone = target.dataset.ltvZone;
-+      this.focusZone = "content";
-+      if (zone === "menu") {
-+        this.menu.index = Number(target.dataset.ltvIndex || 0);
-+        this.activateMenu();
-+        return;
-+      }
-+      this.ui.zone = zone;
-+      if (zone === "grid") {
-+        this.ui.row = Number(target.dataset.ltvRow || 0);
-+        this.ui.cell = Number(target.dataset.ltvCell || 0);
-+        this.ui.cellRow = this.ui.row;
-+        this.ui.cellChannelId = this.visibleChannels()[this.ui.row]?.id;
-+      } else if (zone === "channel") {
-+        const channelId = target.dataset.ltvChannelId;
-+        this.ui.row = Math.max(
-+          0,
-+          this.visibleChannels().findIndex((channel) => channel.id === channelId)
-+        );
-+      } else {
-+        const key = {
-+          header: "headerIndex",
-+          chips: "chipIndex",
-+          sort: "sortIndex",
-+          recents: "recentIndex",
-+          state: "stateIndex",
-+          cards: "cardIndex"
-+        }[zone];
-+        if (key) this.ui[key] = Number(target.dataset.ltvIndex || 0);
-+      }
-+      this.activateFocused();
-+      this.renderContent();
++      this.activatePointerTarget(event.target);
 +    });
 +  },
 +

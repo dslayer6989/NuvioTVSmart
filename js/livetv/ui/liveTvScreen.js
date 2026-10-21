@@ -1206,46 +1206,73 @@ export const LiveTvScreen = {
 
   // --- Magic Remote / mouse ---------------------------------------------------------
 
+  /** Points `this.ui` at a Live TV element (Magic Remote pointer or mouse). */
+  syncUiFromTarget(target) {
+    const node = target?.closest?.("[data-ltv-zone]");
+    if (!node || !this.container?.contains(node)) return null;
+    const zone = node.dataset.ltvZone;
+    if (zone === "menu") {
+      if (this.menu) this.menu.index = Number(node.dataset.ltvIndex || 0);
+      return zone;
+    }
+    if (this.menu) return null;
+    this.focusZone = "content";
+    this.ui.zone = zone;
+    if (zone === "grid") {
+      this.ui.row = Number(node.dataset.ltvRow || 0);
+      this.ui.cell = Number(node.dataset.ltvCell || 0);
+      this.ui.cellRow = this.ui.row;
+      this.ui.cellChannelId = this.visibleChannels()[this.ui.row]?.id;
+    } else if (zone === "channel") {
+      const channelId = node.dataset.ltvChannelId;
+      this.ui.row = Math.max(
+        0,
+        this.visibleChannels().findIndex((channel) => channel.id === channelId)
+      );
+    } else {
+      const key = {
+        header: "headerIndex",
+        chips: "chipIndex",
+        sort: "sortIndex",
+        recents: "recentIndex",
+        state: "stateIndex",
+        cards: "cardIndex"
+      }[zone];
+      if (key) this.ui[key] = Number(node.dataset.ltvIndex || 0);
+    }
+    return zone;
+  },
+
+  activatePointerTarget(target) {
+    const zone = this.syncUiFromTarget(target);
+    if (!zone) return false;
+    if (zone === "menu") {
+      this.activateMenu();
+      return true;
+    }
+    this.activateFocused();
+    this.renderContent();
+    return true;
+  },
+
+  // LG Magic Remote: hovering moves the remote's focus; clicking acts like OK.
+  onPointerFocus(target) {
+    // Keep the details panel in step with the programme under the pointer.
+    if (this.syncUiFromTarget(target) === "grid") this.renderContent();
+  },
+
+  onPointerActivate(target) {
+    return this.activatePointerTarget(target);
+  },
+
   bindPointerEvents() {
     const root = this.container;
     if (!root || root.__ltvPointerBound) return;
     root.__ltvPointerBound = true;
+    // Mouse clicks outside webOS (webOS clicks arrive through onPointerActivate).
     root.addEventListener("click", (event) => {
       if (Number(event?.detail || 0) === 0) return; // keyboard-generated click; keys are handled already
-      const target = event.target?.closest?.("[data-ltv-zone]");
-      if (!target || !root.contains(target)) return;
-      const zone = target.dataset.ltvZone;
-      this.focusZone = "content";
-      if (zone === "menu") {
-        this.menu.index = Number(target.dataset.ltvIndex || 0);
-        this.activateMenu();
-        return;
-      }
-      this.ui.zone = zone;
-      if (zone === "grid") {
-        this.ui.row = Number(target.dataset.ltvRow || 0);
-        this.ui.cell = Number(target.dataset.ltvCell || 0);
-        this.ui.cellRow = this.ui.row;
-        this.ui.cellChannelId = this.visibleChannels()[this.ui.row]?.id;
-      } else if (zone === "channel") {
-        const channelId = target.dataset.ltvChannelId;
-        this.ui.row = Math.max(
-          0,
-          this.visibleChannels().findIndex((channel) => channel.id === channelId)
-        );
-      } else {
-        const key = {
-          header: "headerIndex",
-          chips: "chipIndex",
-          sort: "sortIndex",
-          recents: "recentIndex",
-          state: "stateIndex",
-          cards: "cardIndex"
-        }[zone];
-        if (key) this.ui[key] = Number(target.dataset.ltvIndex || 0);
-      }
-      this.activateFocused();
-      this.renderContent();
+      this.activatePointerTarget(event.target);
     });
   },
 

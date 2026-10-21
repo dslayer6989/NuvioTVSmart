@@ -286,6 +286,10 @@ export function createPlayerLiveTvMethods() {
           return stop();
         }
         if (code === KEY.ENTER) {
+          // The Magic Remote pointer may have moved focus to another row.
+          const pointed = globalThis.document?.activeElement?.closest?.("[data-ltv-list-index]");
+          if (pointed)
+            this.liveTvListIndex = Number(pointed.dataset.ltvListIndex || this.liveTvListIndex);
           if (!event?.repeat) this.liveTvActivateListRow();
           return stop();
         }

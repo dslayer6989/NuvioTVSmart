@@ -63,12 +63,14 @@ function cellState(cell, nowMs) {
 
 function renderTimeBar(view, nowMs, dayLabel) {
   const slots = [];
+  const nowInView = nowMs >= view.startMs && nowMs < view.endMs;
   for (let slot = view.startMs; slot < view.endMs; slot += HALF_HOUR_MS) {
+    // The "now" pill already shows the time; don't let a slot label sit under it.
+    if (nowInView && slot > nowMs - pxToMs(110) && slot < nowMs + pxToMs(70)) continue;
     slots.push(
       `<span class="ltv-time-slot" style="left:${Math.round(msToPx(slot - view.startMs))}px">${escapeHtml(formatClock(slot))}</span>`
     );
   }
-  const nowInView = nowMs >= view.startMs && nowMs < view.endMs;
   return `
     <div class="ltv-time-bar" data-ltv-key="timebar" style="height:${GUIDE_TIME_BAR_PX}px">
       <div class="ltv-time-day" style="width:${GUIDE_CHANNEL_COLUMN_PX}px">${escapeHtml(dayLabel)}</div>

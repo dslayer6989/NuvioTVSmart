@@ -234,7 +234,7 @@ html.ltv-glow:not(.performance-constrained) .ltv-live-dot {
   background: var(--ltv-progress-gradient);
 }
 
-html.ltv-glow .ltv-progress-fill {
+html.ltv-glow:not(.performance-constrained) .ltv-progress-fill {
   box-shadow: 0 0 8px var(--ltv-accent);
 }
 
@@ -303,7 +303,7 @@ html.ltv-glow .ltv-progress-fill {
   box-shadow: 0 0 0 3px var(--ltv-accent);
 }
 
-html.ltv-glow .ltv-pill.focused {
+html.ltv-glow:not(.performance-constrained) .ltv-pill.focused {
   box-shadow:
     0 0 0 3px var(--ltv-accent),
     0 0 18px var(--ltv-accent);
@@ -361,7 +361,7 @@ html.ltv-glow .ltv-pill.focused {
   font-family: var(--app-font-family);
 }
 
-html.ltv-glow .ltv-title-text {
+html.ltv-glow:not(.performance-constrained) .ltv-title-text {
   text-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
 }
 
@@ -423,7 +423,7 @@ html.ltv-glow .ltv-title-text {
   transform: scale(1.05);
 }
 
-html.ltv-glow .ltv-action.focused {
+html.ltv-glow:not(.performance-constrained) .ltv-action.focused {
   box-shadow: 0 0 20px var(--ltv-accent);
 }
 
@@ -773,7 +773,7 @@ html.ltv-glow .ltv-action.focused {
   font-style: normal;
 }
 
-html.ltv-glow .ltv-program-cell.focused {
+html.ltv-glow:not(.performance-constrained) .ltv-program-cell.focused {
   box-shadow:
     0 0 0 3px var(--ltv-accent-soft),
     0 0 22px var(--ltv-accent);
@@ -799,7 +799,7 @@ html.ltv-glow .ltv-program-cell.focused {
   pointer-events: none;
 }
 
-html.ltv-glow .ltv-now-line {
+html.ltv-glow:not(.performance-constrained) .ltv-now-line {
   box-shadow: 0 0 12px var(--ltv-accent);
 }
 
@@ -990,7 +990,7 @@ html.ltv-glow .ltv-now-line {
   background: var(--ltv-airing-gradient);
 }
 
-html.ltv-glow .ltv-onnow-card.focused {
+html.ltv-glow:not(.performance-constrained) .ltv-onnow-card.focused {
   box-shadow:
     0 0 0 4px var(--ltv-accent),
     0 0 26px var(--ltv-accent);
@@ -1429,7 +1429,7 @@ html.ltv-glow .ltv-onnow-card.focused {
   color: var(--ltv-on-accent);
 }
 
-html.ltv-glow .ltv-player-list-row.focused {
+html.ltv-glow:not(.performance-constrained) .ltv-player-list-row.focused {
   box-shadow: 0 0 20px var(--ltv-accent);
 }
 
