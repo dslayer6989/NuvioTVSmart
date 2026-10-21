@@ -1,5 +1,5 @@
 {
-  "name": "space.nuvio.webos.plugin.service",
+  "name": "com.wgdively.nuvio.livetv.plugin.service",
   "private": true,
   "main": "src/index.js"
 }

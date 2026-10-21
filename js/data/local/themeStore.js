@@ -1,5 +1,6 @@
 import { createProfileScopedStore } from "./profileScopedStore.js";
 import { encodeCustomThemeColors } from "../../core/util/customThemeColors.js";
+import { LIVE_TV_THEME_ACCENTS } from "../../livetv/liveTvThemes.js";
 
 const KEY = "themeSettings";
 
@@ -37,7 +38,8 @@ const THEME_BY_ACCENT = new Map([
   ["#3185f5", "ARCTIC_BLUE"],
   ["#4de3ff", "ARCTIC_BLUE"],
   ["#aab2be", "GRAPHITE"],
-  ["#f3f5f7", "GRAPHITE"]
+  ["#f3f5f7", "GRAPHITE"],
+  ...Object.entries(LIVE_TV_THEME_ACCENTS).map(([themeName, accent]) => [accent, themeName])
 ]);
 
 const ACCENT_BY_THEME = {
@@ -52,7 +54,8 @@ const ACCENT_BY_THEME = {
   JADE: "#22d37c",
   ROSE_GOLD: "#ec70a9",
   ARCTIC_BLUE: "#3185f5",
-  GRAPHITE: "#aab2be"
+  GRAPHITE: "#aab2be",
+  ...LIVE_TV_THEME_ACCENTS
 };
 
 export function accentColorForTheme(themeName) {

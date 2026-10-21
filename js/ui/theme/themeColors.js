@@ -3,6 +3,7 @@ import {
   normalizeCustomThemeColors,
   resolveCustomThemeColors
 } from "../../core/util/customThemeColors.js";
+import { LIVE_TV_THEME_PALETTES } from "../../livetv/liveTvThemes.js";
 
 function parseColor(hex) {
   const value = String(hex || "").replace(/^#/, "");
@@ -236,7 +237,9 @@ const palettes = {
     "--border-color": "#333333",
     "--focus-color": "#ec407a",
     "--focus-bg": "#3d1a2d"
-  }
+  },
+  // Live TV themes (Neon Broadcast, Retro Cable Guide, Teletext, ...).
+  ...LIVE_TV_THEME_PALETTES
 };
 
 export const ThemeColors = {

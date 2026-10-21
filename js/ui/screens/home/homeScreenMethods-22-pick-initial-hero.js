@@ -1,4 +1,5 @@
 import * as internals from "./homeScreenContext.js";
+import { buildLiveTvHomeRow, isLiveTvHomeRow } from "../../../livetv/liveTvHomeRow.js";
 
 export function createHomeScreenMethods22() {
   const {
@@ -115,7 +116,7 @@ export function createHomeScreenMethods22() {
       const collectionRows = (Array.isArray(collections) ? collections : [])
         .map((collection) => buildCollectionHomeRow(collection))
         .filter((row) => Array.isArray(row?.result?.data?.items) && row.result.data.items.length);
-      const catalogRows = (Array.isArray(rows) ? rows : []).filter((row) => row?.rowKind !== "collection");
+      const catalogRows = (Array.isArray(rows) ? rows : []).filter((row) => row?.rowKind !== "collection" && !isLiveTvHomeRow(row));
       const rowMap = new Map([...catalogRows, ...collectionRows].map((row) => [row.homeCatalogKey, row]));
       const allKeys = Array.from(rowMap.keys());
       const orderedKeys = HomeCatalogStore.ensureOrderKeys(allKeys);
@@ -135,7 +136,9 @@ export function createHomeScreenMethods22() {
         .filter(Boolean)
         .filter((row) => !isRowDisabled(row))
         .map(applyCustomTitle);
-      return [...pinnedTopRows, ...orderedRows];
+      // Live TV: "Live Now" (favorite channels on air) sits right after Continue Watching.
+      const liveTvRow = buildLiveTvHomeRow();
+      return [...(liveTvRow ? [liveTvRow] : []), ...pinnedTopRows, ...orderedRows];
     },
     retryPendingCatalogRows() {
       if (this.catalogRetryInFlight) {

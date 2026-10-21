@@ -74,6 +74,7 @@ export function createPlayerScreenMethods01() {
         }
       }
       this.params = params;
+      this.liveTvOnMount(params);
       this.streamLinkCacheProfileId = activeStreamLinkProfile();
       this.trackPreferenceContentId = this.getTrackPreferenceContentId();
       this.subtitleDelayPreferenceVideoId = this.getSubtitleDelayPreferenceVideoId();

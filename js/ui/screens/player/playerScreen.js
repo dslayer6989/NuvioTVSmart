@@ -74,6 +74,7 @@ import { createPlayerScreenMethods72 } from "./playerScreenMethods-72-on-key-up.
 import { createPlayerScreenMethods73 } from "./playerScreenMethods-73-cleanup.js";
 
 import { createPlayerPartyMethods } from "./playerParty.js";
+import { createPlayerLiveTvMethods } from "../../../livetv/liveTvPlayer.js";
 export * from "./playerScreenContext.js";
 export const PlayerScreen = {
   ...StreamInfoMethods,
@@ -150,5 +151,6 @@ export const PlayerScreen = {
   ...createPlayerScreenMethods71(),
   ...createPlayerScreenMethods72(),
   ...createPlayerScreenMethods73(),
-  ...createPlayerPartyMethods()
+  ...createPlayerPartyMethods(),
+  ...createPlayerLiveTvMethods()
 };

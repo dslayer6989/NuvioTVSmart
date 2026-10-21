@@ -38,6 +38,7 @@ export function createLibraryScreenMethods07() {
       }
       if (
         action === "gotoSearch" ||
+        action === "gotoLiveTv" ||
         action === "gotoDiscover" ||
         action === "gotoLibrary" ||
         action === "gotoPlugin" ||

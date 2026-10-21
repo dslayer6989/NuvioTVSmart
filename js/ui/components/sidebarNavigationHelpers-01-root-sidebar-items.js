@@ -23,6 +23,16 @@ export const ROOT_SIDEBAR_ITEMS = [
       '<path d="M12 3.2 3.5 10v10.25c0 .69.56 1.25 1.25 1.25h5.5v-6.5h3.5v6.5h5.5c.69 0 1.25-.56 1.25-1.25V10L12 3.2Zm0 1.92 7 5.6v9.53h-4v-6.5H9v6.5H5v-9.53l7-5.6Z"/>'
   },
   {
+    action: "gotoLiveTv",
+    route: "liveTv",
+    labelKey: "live_tv_nav_label",
+    label: "Live TV",
+    iconType: "svg",
+    viewBox: "0 0 24 24",
+    iconMarkup:
+      '<path d="M21 6h-7.59l3.29-3.29L16 2l-4 4-4-4-.71.71L10.59 6H3c-1.1 0-2 .89-2 2v12c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.11-.9-2-2-2zm0 14H3V8h18v12zM9 10v8l7-4z"/>'
+  },
+  {
     action: "gotoSearch",
     route: "search",
     labelKey: "sidebar.search",
@@ -63,7 +73,9 @@ export function sidebarItems(layout = {}) {
   if (String(layout?.discoverLocation || "in_search") !== "in_sidebar") {
     return ROOT_SIDEBAR_ITEMS;
   }
-  return [ROOT_SIDEBAR_ITEMS[0], ROOT_SIDEBAR_ITEMS[1], DISCOVER_SIDEBAR_ITEM, ...ROOT_SIDEBAR_ITEMS.slice(2)];
+  // Discover sits right after Search (Live TV comes before Search).
+  const searchIndex = ROOT_SIDEBAR_ITEMS.findIndex((item) => item.action === "gotoSearch");
+  return [...ROOT_SIDEBAR_ITEMS.slice(0, searchIndex + 1), DISCOVER_SIDEBAR_ITEM, ...ROOT_SIDEBAR_ITEMS.slice(searchIndex + 1)];
 }
 
 export const sidebarAvatarCatalogPromises = new Map();

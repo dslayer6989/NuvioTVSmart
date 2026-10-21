@@ -152,6 +152,10 @@ export function createPlayerScreenMethods17() {
         details = null
       } = {}
     ) {
+      // Live TV: a failing source moves on to the channel's next backup instead.
+      if (reason !== "live-tv-sources-exhausted" && this.liveTvTryNextSource(reason || "startup-error")) {
+        return;
+      }
       this.startupErrorMessage = String(message || "").trim() || t("player_error_playback_fallback", {}, "Playback error");
       this.startupErrorMediaCode = Number(mediaErrorCode || 0);
       this.startupErrorDetails = Array.isArray(details)

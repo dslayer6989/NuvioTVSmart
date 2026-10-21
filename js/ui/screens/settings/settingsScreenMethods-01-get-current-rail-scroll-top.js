@@ -1,3 +1,4 @@
+import { runLiveTvSettingsAction } from "../../../livetv/liveTvSettings.js";
 /* eslint-disable no-unused-vars */
 import * as internals from "./settingsScreenContext.js";
 
@@ -106,6 +107,15 @@ export function createSettingsScreenMethods01() {
           ? this.navIndex
           : SECTION_META.findIndex((section) => section.id === this.activeSection);
       this.contentFocusKey = persistedUiState.contentFocusKey || this.contentFocusKey || null;
+      // Live TV opens Settings straight on its own page (and may ask for a setup dialog).
+      this.pendingLiveTvAction = null;
+      if (_params?.section === "liveTv" && !navigationContext?.isBackNavigation) {
+        this.activeSection = "liveTv";
+        this.navIndex = null;
+        this.focusZone = "content";
+        this.contentFocusKey = _params.liveTvAction === "type" ? "liveTv:link" : "liveTv:phone";
+        this.pendingLiveTvAction = _params.liveTvAction || null;
+      }
       this.appearanceThemeFocusKey = persistedUiState.appearanceThemeFocusKey || this.appearanceThemeFocusKey || null;
       this.pluginDraft = this.pluginDraft || "";
       this.integrationView = persistedUiState.integrationView || this.integrationView || "hub";
@@ -133,6 +143,13 @@ export function createSettingsScreenMethods01() {
       }
       await this.render({ refreshModel: false });
       this.isMounted = true;
+      if (this.pendingLiveTvAction) {
+        const action = this.pendingLiveTvAction;
+        this.pendingLiveTvAction = null;
+        runLiveTvSettingsAction(this, action);
+        await this.render({ refreshModel: false });
+        this.applyFocus?.();
+      }
       this.memberAccessUnsubscribe = MemberAccessRepository.subscribe((access) => {
         if (!this.isMounted || !this.model) return;
         const previous = this.model.memberAccess || {};

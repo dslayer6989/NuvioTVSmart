@@ -1,5 +1,6 @@
 /* eslint-disable no-unused-vars */
 import * as internals from "./playerController.js";
+import { isLiveTvItemType } from "../../livetv/liveTvItemType.js";
 
 export function createPlayerControllerMethods20() {
   const {
@@ -25,6 +26,10 @@ export function createPlayerControllerMethods20() {
         return;
       }
 
+      // Live TV channels never get watch progress or Continue Watching entries.
+      if (isLiveTvItemType(active.itemType)) {
+        return false;
+      }
       if (String(active.itemType || "").toLowerCase() === "cloud") {
         return this.flushCloudLibraryProgress(positionMs, durationMs, clear, active);
       }

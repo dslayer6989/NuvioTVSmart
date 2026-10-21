@@ -1,3 +1,5 @@
+import { LIVE_TV_THEME_IDS } from "../../livetv/liveTvThemes.js";
+
 const SUPPORTER_THEME_ENTITLEMENTS = Object.freeze({
   GOLD: "GOLD_THEME",
   JADE: "JADE_THEME",
@@ -25,7 +27,7 @@ export function availableThemeIds(access = null) {
   const supporterThemes = Object.entries(SUPPORTER_THEME_ENTITLEMENTS)
     .filter(([, entitlement]) => entitlements.has(entitlement))
     .map(([themeName]) => themeName);
-  return [...supporterThemes, "CUSTOM", ...STANDARD_THEME_IDS];
+  return [...supporterThemes, "CUSTOM", ...STANDARD_THEME_IDS, ...LIVE_TV_THEME_IDS];
 }
 
 export function isThemeAvailable(themeName, access = null) {

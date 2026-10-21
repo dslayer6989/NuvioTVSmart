@@ -1,5 +1,6 @@
 import { resolveStreamFilename } from "./streamFilename.js";
 /* eslint-disable no-unused-vars */
+import { isLiveTvItemType } from "../../../livetv/liveTvItemType.js";
 import * as internals from "./playerScreenContext.js";
 
 export function createPlayerScreenMethods07() {
@@ -258,6 +259,7 @@ export function createPlayerScreenMethods07() {
         contentId: String(this.params?.itemId || identity.imdbId || ""),
         videoId: String(this.params?.videoId || this.params?.playerVideoId || ""),
         contentType: isSeriesItemType(identity.itemType) ? "series" : "movie",
+        liveTv: isLiveTvItemType(this.params?.itemType),
         imdbId: identity.imdbId,
         tmdbId: identity.tmdbId || null,
         traktId: identity.traktId || null,

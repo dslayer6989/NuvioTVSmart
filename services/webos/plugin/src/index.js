@@ -2,13 +2,16 @@ var Service;
 try {
   Service = require("webos-service");
 } catch (error) {
-  console.warn("[space.nuvio.webos.plugin.service] webos-service unavailable:", error.message);
+  console.warn(
+    "[com.wgdively.nuvio.livetv.plugin.service] webos-service unavailable:",
+    error.message
+  );
   Service = function () {
     this.register = function () {};
   };
 }
 var pluginHttp = require("../../../plugin-http.cjs");
-var SERVICE_ID = "space.nuvio.webos.plugin.service";
+var SERVICE_ID = "com.wgdively.nuvio.livetv.plugin.service";
 var PLUGIN_SERVICE_PORT = 2721;
 var MAX_ACTIVE_REQUESTS = 10;
 var MAX_RESPONSE_BYTES = 5 * 1024 * 1024;

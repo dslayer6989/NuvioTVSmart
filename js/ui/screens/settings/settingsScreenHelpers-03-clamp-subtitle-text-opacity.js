@@ -310,6 +310,7 @@ export const SECTION_META = [
     subtitleKey: "settings.sections.contentDiscovery.subtitle",
     subtitle: "Add-ons, plugins, catalogs, and discovery sources"
   },
+  { id: "liveTv", label: "Live TV", subtitle: "Addon link, guide refresh, favorites" },
   {
     id: "plugins",
     labelKey: "settings.sections.plugins.label",
@@ -355,6 +356,7 @@ export const SECTION_ICONS = {
   appearance: "palette",
   layout: "grid_view",
   contentDiscovery: "explore",
+  liveTv: "live_tv",
   plugins: "build",
   integration: "link",
   streams: "style",

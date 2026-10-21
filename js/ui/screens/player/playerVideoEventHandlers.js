@@ -255,6 +255,10 @@ export function createPlayerVideoEventHandlers(video, isTizenAvPlayPlayback) {
       return;
     }
 
+    if (this.liveTvTryNextSource?.("playback-error")) {
+      return;
+    }
+
     this.markPlaybackSourceFailed(this.activePlaybackUrl);
 
     this.clearPlaybackStallGuard();

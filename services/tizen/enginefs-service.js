@@ -231,6 +231,12 @@ function startEngineFsRuntime() {
   // overlay. Devices that cannot start the service retain native fallback.
   require("./runtime/tx3g-subtitle-service.cjs").start();
   diagnostic("subtitle service start requested", { port: process.env.PORT });
+  // Live TV: lets a phone on the same Wi-Fi type the addon link for the TV.
+  try {
+    require("./runtime/livetv-phone-service.cjs").start();
+  } catch (error) {
+    diagnostic("Live TV phone service failed to start", { error: diagnosticError(error) });
+  }
 }
 
 function requestRemoveAll() {
@@ -262,6 +268,9 @@ function stopEngineFsRuntime() {
   diagnostic("onExit", { service: "EngineFsService", port: process.env.PORT || "2710" });
   try {
     require("./runtime/tx3g-subtitle-service.cjs").stop();
+  } catch (_) {}
+  try {
+    require("./runtime/livetv-phone-service.cjs").stop();
   } catch (_) {}
   requestRemoveAll();
 }

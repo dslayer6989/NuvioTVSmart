@@ -272,20 +272,25 @@ export function createPlayerScreenMethods21() {
       } catch (_) {
         // Route cleanup will make a second best-effort stop if native teardown throws.
       }
+      // Live TV goes back to wherever the channel was started (the guide or Home).
+      const liveTvReturn = this.liveTvReturnRoute?.() || null;
       const shouldReturnToLibrary = !forceDetail && this.params?.returnToLibraryOnBack === true;
       const shouldReturnToHome = !forceDetail && this.params?.returnToHomeOnBack === true;
       const shouldReturnToStream = !shouldReturnToLibrary && !shouldReturnToHome && !forceDetail && this.shouldReturnToStreamOnBack();
-      const targetRoute = shouldReturnToHome
-        ? "home"
-        : shouldReturnToLibrary
-          ? "library"
-          : shouldReturnToStream
-            ? "stream"
-            : this.params?.itemId
-              ? "detail"
-              : "home";
-      const targetParams =
-        targetRoute === "library"
+      const targetRoute = liveTvReturn
+        ? liveTvReturn.route
+        : shouldReturnToHome
+          ? "home"
+          : shouldReturnToLibrary
+            ? "library"
+            : shouldReturnToStream
+              ? "stream"
+              : this.params?.itemId
+                ? "detail"
+                : "home";
+      const targetParams = liveTvReturn
+        ? liveTvReturn.params
+        : targetRoute === "library"
           ? {}
           : targetRoute === "stream"
             ? streamParams
