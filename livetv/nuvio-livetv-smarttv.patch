@@ -13647,6 +13647,20 @@ index 0000000000000000000000000000000000000000..88c0c88d48a0ad200c06a8e24d8a77e3
 +  clearTimeout(hideTimer);
 +  document.getElementById("liveTvToast")?.classList.remove("is-visible");
 +}
+diff --git a/js/platform/tizen/tizenEngineFsService.js b/js/platform/tizen/tizenEngineFsService.js
+index 5a9c2e2302d956034680066be0a6cb5cb0365b15..416ca8e3b5401457d0da7251e68efa3091ca8156 100644
+--- a/js/platform/tizen/tizenEngineFsService.js
++++ b/js/platform/tizen/tizenEngineFsService.js
+@@ -7,7 +7,8 @@ const START_TIMEOUT_MS = 12000;
+ const PROBE_TIMEOUT_MS = 2500;
+ const SERVICE_START_CALL_TIMEOUT_MS = 4000;
+ const TIZEN_DEFAULT_OPERATION = "http://tizen.org/appcontrol/operation/default";
+-const PURPOSES_ALLOWING_LEGACY_SERVICE = new Set(["p2p", "playback-proxy"]);
++// Live TV phone setup runs its page inside the same packaged service.
++const PURPOSES_ALLOWING_LEGACY_SERVICE = new Set(["p2p", "playback-proxy", "livetv-phone-setup"]);
+ 
+ let startPromise = null;
+ 
 diff --git a/js/platform/webos/webosCompanionService.js b/js/platform/webos/webosCompanionService.js
 index 9a00e1dd56c3cf4b167086573feffeafac167a01..45de17782bc9734d68626a1aedc13246fbccf53f 100644
 --- a/js/platform/webos/webosCompanionService.js
